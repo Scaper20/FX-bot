@@ -81,11 +81,13 @@ An earlier Python prototype, "Preflight bot v0.2" (Telegram bot for a different 
 - 19 Nov 2026: the supplied daily files are **not used** for backtesting. Both are daily only (strategy needs H4 to M5); the GBP/USD close column is broken (94% of days close almost at the open, 23 rows close outside high/low); the gold file is COMEX futures (GC=F), not spot. Full report: `docs/plan-and-spec-draft.md`.
 - 19 Nov 2026: intraday source = Dukascopy 1-minute candles, all timeframes built from them. Dukascopy refuses downloads from the cloud server (HTTP 429), so Ore downloads on his PC (`docs/get-data.md`). If that fails, Ore supplies intraday files.
 - 19 Nov 2026: engine language **Python** (backtest and scanner share `engine/`). Website Next.js reads the database only, no rules in it. Scanner scheduler: GitHub Actions (Vercel free cron is once a day).
-- 19 Nov 2026: spec draft with 18 questions approved as the plan; the questions themselves are still open.
+- 19 Nov 2026: spec draft with 18 questions approved as the plan.
+- 19 Nov 2026: Ore pushed Dukascopy M1 bid data (GBPUSD, XAUUSD, 1 Nov 2021 to 18 Nov 2026) into `data/`. Checked: no duplicates or bad rows, gaps are holidays and gold's daily break; my D1 build matches his 2023+ D1 pack exactly. Data stays in the repo (Ore's choice).
+- 20 Nov 2026: Ore answered the questions. Broker Exness MT5. Wants many variants tested, several setups shown at once, entry options ranked, and Claude free to research and improve. Knows no MSnR: treat as experimental. Rules written up in `docs/spec-v1.md` (awaiting Ore's approval).
 
 ## 11. Open items
-- [ ] Ore's answers to spec questions Q1 to Q18 (`docs/plan-and-spec-draft.md`, Step 2).
-- [ ] Daily candle close time (Ore unsure; depends on broker). Code defaults to 17:00 New York until answered.
-- [ ] Download Dukascopy M1 for GBPUSD and XAUUSD, Nov 2021 to Nov 2026, and run the data check.
+- [ ] Ore approves `docs/spec-v1.md`.
+- [ ] Confirm Exness MT5 server time is GMT+0 (then D1/H4 use day_close="utc0").
+- [ ] Exness account type, for real spreads.
 - [ ] Confirm XAU/USD works on the Twelve Data free plan, and the live-versus-historical price gap. Key is not yet set in the cloud session.
 - [ ] Before going public: legal opinion (Nigeria SEC draft rules on online forex and CFD trading are not yet in force but could cover this), data and hosting licence checks, wording review.
