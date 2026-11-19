@@ -1,4 +1,4 @@
-# Strategy spec v1 (CRT + ICT, MSnR experimental)
+# Strategy spec v1.1 (CRT + ICT, MSnR experimental) — approved by Ore 20 Nov 2026
 
 Status column: **Ore** = Ore's answer (20 Nov 2026). **Claude** = my proposal where Ore said "test it" or "you decide". **Test** = several options will be measured, not chosen in advance.
 Nothing here is promised to work. Every number shown on the site comes from a run, with sample size and date range.
@@ -7,11 +7,11 @@ Nothing here is promised to work. Every number shown on the site comes from a ru
 | Rule | Choice | Status |
 |---|---|---|
 | Broker / platform | Exness, MT5 | Ore |
-| Candle day | Exness MT5 server time is reported to be GMT+0, so D1 = 00:00–24:00 UTC and H4 opens at 00, 04, 08, 12, 16, 20 UTC. Includes the short Sunday-evening candle. **Ore to confirm in MT5.** | Claude, to confirm |
+| Candle day | Exness MT5 server = GMT+0 (Ore saw the Sunday candle). D1 = 00:00–24:00 UTC, H4 opens 00, 04, 08, 12, 16, 20 UTC, Sunday-evening candle included and labelled | Ore confirmed |
 | Pairs | GBP/USD, XAU/USD (spot) | Ore |
 | Range → entry | D1 → H1 or M15; H4 → M15 or M5 | Ore |
 | Minimum reward:risk | 1:3 to at least one target, after costs | Ore |
-| Costs | Ore doesn't factor spread in, but the backtest must. Assumed per trade, spread + slippage: GBP/USD 1.0 pip, XAU/USD $0.35. Every result is also shown at double cost. Replace with Ore's real Exness spreads when known. | Claude |
+| Costs | Ore doesn't factor spread in, but the backtest must. Assumed per trade, spread + slippage: GBP/USD 1.0 pip, XAU/USD $0.35. Every result is also shown at double cost. Ore's account: Exness Standard (no commission). Replace with his real spreads when he sends them. | Claude |
 
 ## 2. CRT: range and sweep
 | Rule | Choice | Status |
@@ -35,6 +35,15 @@ All are optional and all add confidence (Ore). The backtest records which ones w
 | Order block | The last up-close candle before the move down that caused the CISD or MSS. Valid only if it took liquidity (its high ran above the previous candle's high) **and** the move away left an FVG | Ore's picture |
 | Killzone | Trigger happens in London 07:00–10:00 London time, or New York 08:30–11:00 New York time (daylight saving handled) | Claude, ICT common use |
 | Breaker block | Planned for v2, not in the first run | Claude |
+
+## 3b. Higher-timeframe confluences (added by Ore on approval)
+Recorded on every setup and measured like the others. Bearish example; bullish is the mirror.
+| Confluence | Definition | Status |
+|---|---|---|
+| HTF FVG overlap | The sweep (from the range high up to the sweep high) overlaps a bearish FVG on the range timeframe (and on D1 when the range is H4) that formed before the range candle, within 60 candles, and that price has not traded fully through | Ore, definition Claude |
+| HTF order block overlap | Same, with a bearish order block: an up-close candle followed by a bearish FVG, zone from its open to its high, not closed above since | Ore, definition Claude |
+| HTF MSS | The sweep candle closes below the latest confirmed swing low on the range timeframe | Ore, definition Claude |
+| Mid-timeframe MSS | After the sweep high, a candle one timeframe down (D1 range: H4; H4 range: H1) closes below the latest swing low before the high, by the time of entry | Claude, to match "in the same process" |
 
 ## 4. Entry, stop, targets (tested; site shows the options ranked)
 | Item | Options | Status |
@@ -60,6 +69,12 @@ Testing many combinations finds lucky ones by chance. Protections, fixed **befor
 ## 7. On the site
 "Find me a setup" lists **all** current setups that meet the 1:3 rule, ranked by measured after-cost average R of that exact variant. Each one shows its sample size and dates, a confluence checklist, and the entry options ranked. If nothing qualifies, it says so.
 
+## Details fixed while building (Claude)
+- If price goes above the sweep high before the trigger, the setup is cancelled (the stop would have been hit).
+- A pending limit order is cancelled if price reaches the 50% level before it fills.
+- An open trade is closed at market after 5 range candles (D1: 5 days, H4: 20 hours) if neither stop nor target has been hit. Counted separately.
+- Trades are simulated on 1-minute candles. Data is bid prices: buys fill and shorts exit at bid + spread.
+- A limit entry is skipped if price is already past it when the trigger fires (no chasing).
+
 ## Still open
-- Confirm the Exness server time (section 1).
-- Exness account type (Standard, Pro, Raw Spread, Zero), for real spread figures.
+- Ore's real Exness Standard spreads (Market Watch → Columns → Spread).

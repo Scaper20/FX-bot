@@ -1,0 +1,10 @@
+# Example setups (random sample)
+
+- GBPUSD_D1_H1_1.png: GBPUSD short | range D1 candle opened Fri 17 Feb 2023 00:00 UTC, sweep on candle +2 | trigger CISD on H1 at Tue 21 Feb 00:00 UTC | entry E1 1.2038, stop S1 1.2056, target M1_T2 | result stop -1.00R | confluences: killzone london
+- GBPUSD_D1_H1_2.png: GBPUSD long | range D1 candle opened Tue 05 Apr 2022 00:00 UTC, sweep on candle +1 | trigger CISD on H1 at Thu 07 Apr 00:00 UTC | entry E1 1.3069, stop S1 1.3045, target M1_T2 | result stop -1.00R | confluences: has_ob
+- GBPUSD_H4_M5_3.png: GBPUSD long | range H4 candle opened Thu 22 Sep 2022 08:00 UTC, sweep on candle +1 | trigger CISD on M5 at Thu 22 Sep 16:00 UTC | entry E1 1.1268, stop S1 1.1241, target M1_T2 | result stop -1.00R | confluences: has_ob, htf_fvg, msnr, killzone newyork
+- GBPUSD_H4_M5_4.png: GBPUSD short | range H4 candle opened Tue 25 Apr 2023 16:00 UTC, sweep on candle +1 | trigger CISD on M5 at Wed 26 Apr 00:00 UTC | entry E1 1.2413, stop S1 1.2418, target M1_T2 | result stop -1.00R | confluences: has_fvg, has_ob, htf_fvg, msnr
+- XAUUSD_D1_M15_1.png: XAUUSD long | range D1 candle opened Tue 12 Sep 2023 00:00 UTC, sweep on candle +1 | trigger MSS on M15 at Thu 14 Sep 00:00 UTC | entry E1 1909.2, stop S1 1905.6, target M1_T2 | result stop -1.00R | confluences: has_ob, other_trigger, killzone newyork
+- XAUUSD_D1_H1_2.png: XAUUSD short | range D1 candle opened Tue 04 Apr 2023 00:00 UTC, sweep on candle +1 | trigger CISD on H1 at Thu 06 Apr 00:00 UTC | entry E1 2020.2, stop S1 2032, target M1_T2 | result time +1.29R | confluences: other_trigger
+- XAUUSD_H4_M5_3.png: XAUUSD short | range H4 candle opened Fri 17 Feb 2023 16:00 UTC, sweep on candle +1 | trigger CISD on M5 at Fri 17 Feb 22:00 UTC | entry E1 1841.9, stop S1 1843.5, target M1_T2 | result stop -1.00R | confluences: has_ob, htf_fvg, htf_ob, msnr, other_trigger
+- XAUUSD_H4_M15_4.png: XAUUSD long | range H4 candle opened Fri 19 Aug 2022 16:00 UTC, sweep on candle +2 | trigger CISD on M15 at Mon 22 Aug 00:00 UTC | entry E1 1745.5, stop S1 1744.8, target M1_T2 | result stop -1.00R | confluences: has_ob, htf_fvg, other_trigger

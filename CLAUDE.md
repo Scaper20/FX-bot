@@ -83,11 +83,13 @@ An earlier Python prototype, "Preflight bot v0.2" (Telegram bot for a different 
 - 19 Nov 2026: engine language **Python** (backtest and scanner share `engine/`). Website Next.js reads the database only, no rules in it. Scanner scheduler: GitHub Actions (Vercel free cron is once a day).
 - 19 Nov 2026: spec draft with 18 questions approved as the plan.
 - 19 Nov 2026: Ore pushed Dukascopy M1 bid data (GBPUSD, XAUUSD, 1 Nov 2021 to 18 Nov 2026) into `data/`. Checked: no duplicates or bad rows, gaps are holidays and gold's daily break; my D1 build matches his 2023+ D1 pack exactly. Data stays in the repo (Ore's choice).
-- 20 Nov 2026: Ore answered the questions. Broker Exness MT5. Wants many variants tested, several setups shown at once, entry options ranked, and Claude free to research and improve. Knows no MSnR: treat as experimental. Rules written up in `docs/spec-v1.md` (awaiting Ore's approval).
+- 20 Nov 2026: Ore answered the questions. Broker Exness MT5. Wants many variants tested, several setups shown at once, entry options ranked, and Claude free to research and improve. Knows no MSnR: treat as experimental. Rules written up in `docs/spec-v1.md`.
+- 20 Nov 2026: Ore approved spec v1, confirmed Exness server = GMT+0 (Sunday candle seen), account Exness Standard. Added HTF confluences (sweep into older HTF OB/FVG, HTF MSS) as spec v1.1.
+- 20 Nov 2026: v1.1 engine built (`engine/setups.py`), 30 tests pass. Design-period backtest (Nov 2021 to Dec 2023): **no edge** — best of 3,644 eligible variants t = 1.61, no better than random direction, rules fire as often on shuffled noise. Report: `backtest/reports/design_v1.md`. Check period (2024) deliberately not run yet.
 
 ## 11. Open items
-- [ ] Ore approves `docs/spec-v1.md`.
-- [ ] Confirm Exness MT5 server time is GMT+0 (then D1/H4 use day_close="utc0").
-- [ ] Exness account type, for real spreads.
+- [ ] Ore reviews the example charts (`backtest/reports/examples/`): are these CRTs he would take? Where do they differ from how he trades?
+- [ ] Ore's real Exness Standard spreads.
+- [ ] Decide v1.2 changes (design data only), then run Check (2024) once.
 - [ ] Confirm XAU/USD works on the Twelve Data free plan, and the live-versus-historical price gap. Key is not yet set in the cloud session.
 - [ ] Before going public: legal opinion (Nigeria SEC draft rules on online forex and CFD trading are not yet in force but could cover this), data and hosting licence checks, wording review.
