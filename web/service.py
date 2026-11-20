@@ -15,6 +15,8 @@ from engine.live import (ENGINE_VERSION, ENTRY_LABEL, MGMT_LABEL, STOP_LABEL, al
                          track_card_options)
 from engine.setups import Market
 
+from . import alerts
+
 PAIRS = tuple(K.PAIRS)
 FINAL_STATES = {"stop", "target", "breakeven", "time"}
 TF_STEP = {"H1": pd.Timedelta("1h"), "M15": pd.Timedelta("15min"), "M5": pd.Timedelta("5min")}
@@ -92,7 +94,8 @@ def lot_size(settings: dict, pair: str, entry: float, stop: float) -> dict:
 # ------------------------------------------------------------------ scanning
 
 
-def run_scan(store, feed, now: pd.Timestamp | None = None, trigger: str = "manual", counts_credits: bool = True) -> dict:
+def run_scan(store, feed, now: pd.Timestamp | None = None, trigger: str = "manual", counts_credits: bool = True,
+             base_url: str = "") -> dict:
     """Scan both pairs, log new ready setups, update tracked outcomes, save the scan."""
     now = now or pd.Timestamp.now(tz="UTC").floor("s")
     settings = store.get_settings()
@@ -128,7 +131,7 @@ def run_scan(store, feed, now: pd.Timestamp | None = None, trigger: str = "manua
     except Exception as e:                            # charts only; never fail a scan over it
         errors.append(f"saving chart candles: {e}")
 
-    ready_summary, new_ids = [], []
+    ready_summary, new_ids, new_alert_cards = [], [], []
     for card in res["ready"]:
         mkt = markets[card["pair"]]
         status = track_card_options(mkt, card, spreads[card["pair"]])
@@ -148,24 +151,48 @@ def run_scan(store, feed, now: pd.Timestamp | None = None, trigger: str = "manua
             if extra:
                 store.update_setup(card["id"], added=(logged.get("added") or []) + extra)
         acts = {op["id"]: actionable(op, status.get(op["id"], {}), now) for op in card["options"]}
+        if logged is None and any(acts.values()):
+            new_alert_cards.append(card)
         ready_summary.append({"id": card["id"], "recommended": card["recommended"],
                               "actionable": [k for k, v in acts.items() if v],
                               "in_play": [k for k, v in status.items() if v.get("state") == "open"]})
 
     # track every open logged setup on the pairs we have data for
-    tracked = 0
+    tracked, events = 0, []
+    taken = {}
+    for rv in store.list_reviews():
+        if rv["decision"] == "take":
+            taken[rv["setup_id"]] = rv.get("option_id")
+        else:
+            taken.pop(rv["setup_id"], None)
     for r in store.list_setups(source="live", final=False):
         if r["pair"] not in markets:
             continue
         card_like = dict(r["card"], options=all_options(r))
         st = track_card_options(markets[r["pair"]], card_like, spreads[r["pair"]])
         st = _unknown_if_uncovered(st, markets[r["pair"]], card_like)
+        # trade updates for the option that matters: Ore's Take, else the top-ranked one
+        if r.get("recommended") or r["id"] in taken:
+            oid = taken.get(r["id"]) or r["card"].get("best")
+            what = alerts.transition((r.get("status") or {}).get(oid), st.get(oid))
+            if what:
+                events.append({"id": r["id"], "pair": r["pair"], "direction": r["direction"], "range_tf": r["range_tf"],
+                               "what": what, "R": (st.get(oid) or {}).get("R"), "taken": r["id"] in taken})
         store.update_setup(r["id"], status=st, final=all(is_final(s) for s in st.values()))
         tracked += 1
 
+    notes = []
+    try:
+        for note in (alerts.send_scan_alert(store, settings, new_alert_cards, events, base_url),
+                     alerts.maybe_send_digest(store, settings, now, base_url)):
+            if note:
+                notes.append(note)
+    except Exception as e:                            # an email problem must never fail a scan
+        notes.append(f"alert error: {type(e).__name__}")
+
     light = lambda c: {k: v for k, v in c.items() if k not in ("options", "chart", "checks")}
     row.update(ok=True, ready=len(res["ready"]), armed=len(res["armed"]),
-               message="; ".join(errors) if errors else f"{len(new_ids)} new setup(s) logged",
+               message="; ".join(errors + notes) if errors else "; ".join([f"{len(new_ids)} new setup(s) logged"] + notes),
                finished_at=pd.Timestamp.now(tz="UTC").isoformat(),
                result={"now": now.isoformat(), "ready": ready_summary, "armed": [light(c) for c in res["armed"]],
                        "watch": res["watch"], "errors": errors, "new": new_ids, "tracked": tracked})

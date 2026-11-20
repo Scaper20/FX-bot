@@ -21,8 +21,18 @@
     <input id="cx" name="contract_XAUUSD" inputmode="numeric" value="{{ st.contract.XAUUSD | int }}">
     <label for="tz">Display time zone</label>
     <input id="tz" name="tz" value="{{ st.tz }}">
-    <label for="oe">Your email (for test update emails; never shown publicly)</label>
+    <label for="oe">Your email (alerts and test emails; never shown publicly)</label>
     <input id="oe" name="owner_email" type="email" value="{{ st.get('owner_email', '') }}">
+    <fieldset>
+      <legend>Email me (to the address above)</legend>
+      {% set al = st.get('alerts') or {} %}
+      <label class="row" style="color:inherit;margin:4px 0"><input type="checkbox" name="alert_new" value="1" style="width:auto" {{ 'checked' if al.get('new', true) }}> New setups that match my rules and can still be acted on</label>
+      <label class="row" style="color:inherit;margin:4px 0"><input type="checkbox" name="alert_filtered" value="1" style="width:auto" {{ 'checked' if al.get('filtered', false) }}> Also new setups filtered out by my rules</label>
+      <label class="row" style="color:inherit;margin:4px 0"><input type="checkbox" name="alert_outcomes" value="1" style="width:auto" {{ 'checked' if al.get('outcomes', true) }}> Trade updates: entry filled, target, stop (my Takes and setups matching my rules)</label>
+      <label class="row" style="color:inherit;margin:4px 0"><input type="checkbox" name="alert_digest" value="1" style="width:auto" {{ 'checked' if al.get('digest', true) }}> Daily summary after the New York close</label>
+      <label for="am">Maximum alert emails per day</label>
+      <input id="am" name="alert_max" inputmode="numeric" value="{{ al.get('max_per_day', 30) }}" style="max-width:120px">
+    </fieldset>
     <label for="cl">Daily data credit limit (Twelve Data free plan: 800)</label>
     <input id="cl" name="daily_credit_limit" inputmode="numeric" value="{{ st.daily_credit_limit }}">
     <p><button type="submit">Save settings</button></p>

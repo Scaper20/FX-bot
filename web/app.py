@@ -160,6 +160,7 @@ def create_app(store=None, feed=None, now_fn=None) -> Flask:
             return redirect(url_for("home"))
         try:
             row = service.run_scan(store(), app.extensions["feed_factory"](), now(), trigger="manual",
+                                   base_url=request.url_root.rstrip("/"),
                                    counts_credits=not _is_replay())
             res = row["result"]
             act = sum(1 for r in res["ready"] if r["actionable"])
@@ -343,6 +344,10 @@ def create_app(store=None, feed=None, now_fn=None) -> Flask:
                 "tz": f.get("tz") or st["tz"],
                 "daily_credit_limit": int(_num(f.get("daily_credit_limit"), 780)),
                 "owner_email": community.norm_email(f.get("owner_email")) if community.valid_email(f.get("owner_email") or "") else "",
+                "alerts": {"new": bool(f.get("alert_new")), "outcomes": bool(f.get("alert_outcomes")),
+                           "digest": bool(f.get("alert_digest")), "filtered": bool(f.get("alert_filtered")),
+                           "max_per_day": int(_num(f.get("alert_max"), 30))},
+                "last_digest": st.get("last_digest", ""), "alert_count": st.get("alert_count", {}),
             }
             if not (0 < new["spreads"]["GBPUSD"] < 0.01 and 0 < new["spreads"]["XAUUSD"] < 20
                     and 0 < new["risk_pct"] <= 10 and new["balance"] > 0):
@@ -629,6 +634,7 @@ def create_app(store=None, feed=None, now_fn=None) -> Flask:
             return jsonify(ok=True, skipped="outside London/New York hours or weekend")
         try:
             row = service.run_scan(store(), app.extensions["feed_factory"](), t, trigger="schedule",
+                                   base_url=request.url_root.rstrip("/"),
                                    counts_credits=not _is_replay())
             return jsonify(ok=True, ready=row["ready"], armed=row["armed"], message=row["message"])
         except (service.ScanError, StoreError, FeedError) as e:
