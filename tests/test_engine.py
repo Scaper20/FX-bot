@@ -200,3 +200,62 @@ def test_session_flags_follow_daylight_saving():
     assert session_flags(ts("2024-07-10 06:30")) == "london"      # summer: London 07:30 BST
     assert session_flags(ts("2024-07-10 02:00")) == ""
     assert friday_late(ts("2024-01-12 20:30")) and not friday_late(ts("2024-01-11 20:30"))
+
+
+# ------------------------------------------------------------ live market
+
+def _frames_from_m1(m1, now):
+    from engine.candles import resample
+    past = m1[m1.index < now]
+    return {tf: resample(past, tf, "utc0")[["open", "high", "low", "close"]] for tf in ("H1", "M15", "M5")}
+
+
+def test_live_market_finds_the_same_setups_as_backtest_market(gbp):
+    """Same engine code, live inputs (H1/M15/M5 only) -> same orders as the 1-minute backtest market."""
+    now = pd.Timestamp("2022-02-10 14:00", tz="UTC")
+    a = Market(gbp, data_end=now)
+    b = Market.from_frames(_frames_from_m1(gbp, now), now)
+    n = 0
+    for range_tf, etf in (("H4", "M15"), ("H4", "M5"), ("D1", "H1")):
+        R = a.view[(range_tf, False)]
+        assert len(R.o) == len(b.view[(range_tf, False)].o)
+        for i in range(len(R.o) - 40, len(R.o) - 3):
+            for mir in (False, True):
+                oa, ra = find_orders(a, range_tf, etf, i, 1, mir, 0.0001)
+                ob, rb = find_orders(b, range_tf, etf, i, 1, mir, 0.0001)
+                ka = [(o["trigger"], o["entry_type"], o["stop_type"], round(o["entry"], 6), round(o["stop"], 6),
+                       o["decision_time"], o["htf_fvg"], o["trend_struct"]) for o in oa]
+                kb = [(o["trigger"], o["entry_type"], o["stop_type"], round(o["entry"], 6), round(o["stop"], 6),
+                       o["decision_time"], o["htf_fvg"], o["trend_struct"]) for o in ob]
+                assert ka == kb
+                n += len(oa)
+    assert n > 0
+
+
+def test_live_reasons_waiting_and_projected_window(gbp):
+    from engine.calendar import next_closes
+    # Friday H4 candle closing 20:00 UTC -> next H4 closes are Fri 24:00 (market closes 22:00) and Sun 24:00
+    fri = pd.Timestamp("2022-01-14 20:00", tz="UTC").value
+    nxt = [pd.Timestamp(x, tz="UTC") for x in next_closes("H4", fri, 2)]
+    assert nxt == [pd.Timestamp("2022-01-15 00:00", tz="UTC"), pd.Timestamp("2022-01-17 00:00", tz="UTC")]
+    d1 = [pd.Timestamp(x, tz="UTC") for x in next_closes("D1", pd.Timestamp("2022-01-15 00:00", tz="UTC").value, 2)]
+    assert d1 == [pd.Timestamp("2022-01-17 00:00", tz="UTC"), pd.Timestamp("2022-01-18 00:00", tz="UTC")]
+
+
+def test_track_order_reports_pending_then_final(gbp):
+    from engine.setups import track_order
+    full = Market(gbp, data_end=pd.Timestamp("2022-02-15", tz="UTC"))
+    R = full.view[("H4", False)]
+    for i in range(30, len(R.o) - 10):
+        orders, _ = find_orders(full, "H4", "M15", i, 1, False, 0.0001)
+        lim = [o for o in orders if not o["market"]]
+        if lim:
+            o = lim[0]
+            break
+    early = Market(gbp, data_end=pd.Timestamp(o["t_dec"], tz="UTC") + pd.Timedelta("5min"))
+    st = track_order(early, o, "H4", False, 0.0001)
+    assert st["status"] in ("pending", "filled")
+    final = track_order(full, o, "H4", False, 0.0001)
+    assert final["status"] in ("filled", "expired", "cancelled")
+    if final["status"] == "filled":
+        assert all(r["state"] in ("stop", "target", "breakeven", "time") for r in final["results"].values())

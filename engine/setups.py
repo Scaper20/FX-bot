@@ -11,7 +11,8 @@ import pandas as pd
 
 from . import config as K
 from . import structure as S
-from .candles import resample
+from .calendar import next_closes
+from .candles import resample, resample_from, with_close_times
 from .sessions import friday_late, in_killzone, session_flags
 from .simulate import simulate
 
@@ -39,17 +40,23 @@ def _tf(df: pd.DataFrame, mirrored: bool) -> TF:
 
 
 class Market:
-    """All timeframes for one pair, built from 1-minute candles that end before `data_end`."""
+    """All timeframes for one pair. Backtest: built from 1-minute candles that end before
+    `data_end`. Live: Market.from_frames() with H1, M15, M5 candles and the current time."""
 
     TFS = ("M5", "M15", "H1", "H4", "D1")
+    live = False
+    now_ns = None
 
-    def __init__(self, m1: pd.DataFrame, data_end: pd.Timestamp, day_close: str = K.DAY_CLOSE):
-        m1 = m1[m1.index < data_end]
-        self.last_time = m1.index[-1] + pd.Timedelta("1min")
-        frames = {"M1": m1.assign(m1_count=1, close_time_utc=m1.index + pd.Timedelta("1min"))}
-        for tf in self.TFS:
-            df = resample(m1, tf, day_close)
-            frames[tf] = df[df["close_time_utc"] <= self.last_time]   # complete candles only
+    def __init__(self, m1: pd.DataFrame | None, data_end: pd.Timestamp | None = None,
+                 day_close: str = K.DAY_CLOSE, frames: dict | None = None):
+        if frames is None:
+            m1 = m1[m1.index < data_end]
+            self.last_time = m1.index[-1] + pd.Timedelta("1min")
+            frames = {"M1": m1.assign(m1_count=1, close_time_utc=m1.index + pd.Timedelta("1min"))}
+            for tf in self.TFS:
+                df = resample(m1, tf, day_close)
+                frames[tf] = df[df["close_time_utc"] <= self.last_time]   # complete candles only
+        self.day_close = day_close
         self.frames = frames
         self.view = {(tf, mir): _tf(df, mir) for tf, df in frames.items() for mir in (False, True)}
         d1 = frames["D1"]
@@ -67,6 +74,24 @@ class Market:
         self.d1_ema = np.where(up, 1, np.where(dn, -1, 0))
 
 
+    @classmethod
+    def from_frames(cls, base: dict, now: pd.Timestamp, day_close: str = K.DAY_CLOSE) -> "Market":
+        """Live market from H1, M15 and M5 candles (indexed by open time, UTC). Only candles
+        that had closed at `now` are kept; H4 and D1 are built from H1."""
+        frames = {}
+        for tf in ("M5", "M15", "H1"):
+            df = with_close_times(base[tf][["open", "high", "low", "close"]], tf, day_close)
+            frames[tf] = df[df["close_time_utc"] <= now]
+        for tf in ("H4", "D1"):
+            df = resample_from(frames["H1"], tf, day_close)
+            frames[tf] = df[df["close_time_utc"] <= now]
+        mkt = cls(None, frames=frames, day_close=day_close)
+        mkt.live = True
+        mkt.now_ns = int(now.value)
+        mkt.last_time = now
+        return mkt
+
+
 def _atr(df: pd.DataFrame, n: int = 14) -> np.ndarray:
     prev_c = df["close"].shift()
     tr = np.maximum(df["high"] - df["low"],
@@ -79,13 +104,25 @@ def _idx_closed_by(tf: TF, t_ns: int) -> int:
     return int(np.searchsorted(tf.t_close, t_ns, side="right")) - 1
 
 
+def window_ends(mkt: Market, range_tf: str, R: TF, s: int) -> dict:
+    """Close times of the 1st and 2nd range candles after the sweep candle: the setup
+    expires at the second. Real candles when they exist; live, projected by the calendar."""
+    have = [int(R.t_close[j]) for j in (s + 1, s + 2) if j < len(R.t_close)]
+    if len(have) < 2:
+        last = have[-1] if have else int(R.t_close[s])
+        have += next_closes(range_tf, last, 2 - len(have))
+    return {1: have[0], 2: have[1]}
+
+
 def find_orders(mkt: Market, range_tf: str, entry_tf: str, i: int, k: int, mirrored: bool,
-                spread: float) -> tuple[list[dict], str]:
+                spread: float, info: dict | None = None) -> tuple[list[dict], str]:
     """Evaluate range candle i with sweep candle i+k (k = 1 or 2) in one direction.
-    Returns (orders, reason) where reason explains why there are none."""
+    Returns (orders, reason) where reason explains why there are none. Live reasons:
+    'waiting' (armed: valid sweep, no trigger yet, window open) and 'invalidated'.
+    If `info` is a dict it receives the range/sweep levels for display."""
     R = mkt.view[(range_tf, mirrored)]
     s = i + k
-    if s + 2 >= len(R.o):
+    if s >= len(R.o) or (s + 2 >= len(R.o) and not mkt.live):
         return [], "no_room"
     rh, rl = R.h[i], R.l[i]
     if rh <= rl:
@@ -100,7 +137,11 @@ def find_orders(mkt: Market, range_tf: str, entry_tf: str, i: int, k: int, mirro
     # Sweep candle must be contiguous in time (no multi-day data hole inside)
     sweep_hi = R.h[s]
     t_s_open, t_s_close = R.t_open[s], R.t_close[s]
-    end_by_exp = {1: R.t_close[s + 1], 2: R.t_close[s + 2]}
+    end_by_exp = window_ends(mkt, range_tf, R, s)
+    if info is not None:
+        info.update(range_high=float(rh), range_low=float(rl), sweep_extreme=float(sweep_hi),
+                    sweep_close=float(R.c[s]), sweep_open_ns=int(t_s_open), sweep_close_ns=int(t_s_close),
+                    window_end_ns=int(end_by_exp[2]))
 
     E = mkt.view[(entry_tf, mirrored)]
     e0 = int(np.searchsorted(E.t_open, t_s_open, side="left"))
@@ -118,6 +159,10 @@ def find_orders(mkt: Market, range_tf: str, entry_tf: str, i: int, k: int, mirro
         "MSS": S.first_mss(E.l, E.c, top, scan_end, K.SWING_N),
     }
     if all(v < 0 for v in triggers.values()):
+        if inv >= 0:
+            return [], "invalidated"
+        if mkt.live and mkt.now_ns < end_by_exp[2]:
+            return [], "waiting"
         return [], "no_trigger"
 
     # ---------- features known at the sweep candle's close (range-TF context)
@@ -251,3 +296,55 @@ def simulate_order(mkt: Market, order: dict, range_tf: str, mirrored: bool, spre
         for r in out["results"].values():
             r["exit_time"] = int(M.t_close[r["exit"]])
     return out
+
+
+def track_order(mkt: Market, order: dict, range_tf: str, mirrored: bool, spread: float) -> dict:
+    """Live status of an order using the finest candles available (M1 in a backtest
+    market, M5 live), with the same rules as simulate(). Unlike simulate_order it knows
+    the data stops at 'now': an unfilled order whose window is still open is 'pending'
+    and a filled trade with no exit yet is 'open' (with its R at the last close).
+    Returns {status, fill_time?, results: {mgmt: {state, R, exit_time?}}}."""
+    tf = "M1" if ("M1", mirrored) in mkt.view else "M5"
+    M = mkt.view[(tf, mirrored)]
+    R = mkt.view[(range_tf, mirrored)]
+    n = len(M.t_open)
+    start = int(np.searchsorted(M.t_open, order["t_dec"], side="left"))
+    pend_true = int(order["t_end"][2])
+    pend_end = int(np.searchsorted(M.t_open, pend_true, side="left"))
+    last_close = int(M.t_close[-1]) if n else 0
+
+    def hold_stop_ns(t0: int) -> int:
+        j = int(np.searchsorted(R.t_close, t0, side="left")) + K.HOLD_RANGE_CANDLES - 1
+        if j < len(R.t_close):
+            return int(R.t_close[j])
+        have = int(R.t_close[-1]) if len(R.t_close) else t0
+        extra = j - (len(R.t_close) - 1)
+        return next_closes(range_tf, have, extra)[-1]
+
+    def hold_end(fill_idx: int) -> int:
+        t0 = M.t_close[fill_idx] if fill_idx >= 0 else order["t_dec"]
+        return int(np.searchsorted(M.t_open, hold_stop_ns(int(t0)), side="left"))
+
+    fill_shift, exit_shift = (spread, 0.0) if mirrored else (0.0, spread)
+    if start >= n:
+        return {"status": "pending", "tf": tf, "results": {}}
+    out = simulate(M.h, M.l, M.c, start, pend_end, hold_end, entry=order["entry"], market=order["market"],
+                   stop=order["stop"], targets=order["targets"], t1=order["targets"]["T1"],
+                   fill_shift=fill_shift, exit_shift=exit_shift)
+    status = out["status"]
+    if status == "expired" and pend_true > last_close:
+        return {"status": "pending", "tf": tf, "results": {}}
+    res = {"status": status, "tf": tf, "results": {}}
+    if status != "filled":
+        return res
+    fill_i = out["fill"]
+    res["fill_time"] = int(M.t_close[fill_i]) if fill_i >= 0 else int(order["t_dec"])
+    res["entry_px"] = out["entry_px"]
+    still_open = hold_stop_ns(res["fill_time"]) > last_close
+    for m, r in out["results"].items():
+        state = r["reason"]
+        if state == "time" and still_open:
+            state = "open"
+        res["results"][m] = {"state": state, "R": float(r["R"]),
+                             "exit_time": int(M.t_close[r["exit"]]) if state != "open" else None}
+    return res

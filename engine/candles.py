@@ -190,3 +190,34 @@ def _close_times(opens: pd.DatetimeIndex, tf: str, day_close: str) -> pd.Datetim
 def closed_only(candles: pd.DataFrame, now_utc: pd.Timestamp) -> pd.DataFrame:
     """Candles that had finished at now_utc. The engine must only ever see these."""
     return candles[candles["close_time_utc"] <= now_utc]
+
+
+def resample_from(base: pd.DataFrame, tf: str, day_close: str = "ny17") -> pd.DataFrame:
+    """Build `tf` candles from smaller candles that nest inside it (e.g. H1 -> H4, D1).
+    `base` needs open/high/low/close, indexed by open time (UTC); an optional `m1_count`
+    column is summed (missing = assume full candles). Same output as resample()."""
+    if tf not in TF_MINUTES:
+        raise ValueError(f"Unknown timeframe {tf}")
+    base = base.sort_index()
+    if base.index.has_duplicates:
+        raise ValueError("duplicate candle times")
+    if "m1_count" not in base.columns:
+        step = (base.index.to_series().diff().mode().iloc[0] if len(base) > 1 else pd.Timedelta("1min"))
+        base = base.assign(m1_count=int(step / pd.Timedelta("1min")))
+    key = _bucket_open_utc(base.index, tf, day_close)
+    g = base.groupby(key)
+    out = pd.DataFrame({"open": g["open"].first(), "high": g["high"].max(), "low": g["low"].min(),
+                        "close": g["close"].last(), "m1_count": g["m1_count"].sum()})
+    out.index = pd.DatetimeIndex(out.index, name="time_utc")
+    out["close_time_utc"] = _close_times(out.index, tf, day_close)
+    return out
+
+
+def with_close_times(df: pd.DataFrame, tf: str, day_close: str = "ny17") -> pd.DataFrame:
+    """Add close_time_utc and m1_count to candles that already are `tf` candles."""
+    out = df.sort_index().copy()
+    out.index = pd.DatetimeIndex(out.index, name="time_utc")
+    if "m1_count" not in out.columns:
+        out["m1_count"] = TF_MINUTES[tf]
+    out["close_time_utc"] = _close_times(out.index, tf, day_close)
+    return out
