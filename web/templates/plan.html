@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block title %}My test · CRT Scanner{% endblock %}
+
+{% macro zf(z) %}{{ '%.1f' % z if z is not none else '—' }}{% endmacro %}
+{% macro vpill(v, text) %}<span style="white-space:normal" class="pill {{ v == 'good' and 'ok' or v == 'bad' and 'bad' or v == 'early' and 'info' or 'warn' }}">{{ '✓ ' if v == 'good' }}{{ '✗ ' if v == 'bad' }}{{ text }}</span>{% endmacro %}
+{% macro bar(frac) %}
+<div style="background:var(--line, #E3E7ED);border-radius:6px;height:10px;margin:8px 0" role="img" aria-label="{{ (frac * 100)|round|int }}% of the way to the decision">
+  <div style="background:var(--green, #0B7A5A);width:{{ (frac * 100)|round(1) }}%;height:10px;border-radius:6px"></div>
+</div>
+{% endmacro %}
+
+{% macro judgment_table(j) %}
+<div class="tablewrap"><table class="rtable">
+  <thead><tr><th>Measure</th><th class="num">Value</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td data-label="Measure">Finished Takes</td><td class="num" data-label="Value">{{ j.n }}</td><td data-label="Meaning">Take {{ j.counts.take }} · Skip {{ j.counts.skip }} · Unsure {{ j.counts.unsure }} reviewed</td></tr>
+    <tr><td data-label="Measure">Average result of your Takes</td><td class="num" data-label="Value">{{ rfmt(j.avg_R) }}</td><td data-label="Meaning">after spread, the option you picked</td></tr>
+    <tr><td data-label="Measure">Chance on the same trades</td><td class="num" data-label="Value">{{ rfmt(j.chance_R) }}</td><td data-label="Meaning">what a coin flip makes after spread</td></tr>
+    <tr><td data-label="Measure"><b>Edge vs chance</b></td><td class="num" data-label="Value"><b>{{ rfmt(j.edge) }}</b> (z {{ zf(j.z) }})</td><td data-label="Meaning">z of 2 or more is unlikely to be luck</td></tr>
+    <tr><td data-label="Measure"><b>Takes minus Skips</b></td><td class="num" data-label="Value"><b>{{ rfmt(j.selection) }}</b> (z {{ zf(j.sel_z) }})</td><td data-label="Meaning">positive = you pick better than you pass ({{ j.sel_n[0] }} vs {{ j.sel_n[1] }} setups)</td></tr>
+    <tr><td data-label="Measure">Win rate · total</td><td class="num" data-label="Value">{{ pct(j.win_rate) }} · {{ rfmt(j.total_R) }}</td><td data-label="Meaning">for reference only</td></tr>
+  </tbody>
+</table></div>
+{% endmacro %}
+
+{% block content %}
+<h1>My test</h1>
+<p class="muted">Does your judgment add an edge? The rules below were written down before any result (<span class="mono">docs/plan-judgment.md</span>) and don't change.</p>
+
+{% if d.real.pause %}
+<p class="flash error"><b>Pause.</b> Your recorded trades are {{ '%.1f' % d.real.drawdown }}R below their best point{{ ', with ' ~ d.real.loss_streak ~ ' losses in a row' if d.real.loss_streak }}. The plan says: back to demo, and read your journal before going on.</p>
+{% endif %}
+{% if not d.risk.ok %}
+<p class="flash error">Risk per trade in Settings is <b>{{ '%g' % d.risk.risk }}%</b>. The plan allows at most <b>{{ '%g' % d.risk.cap }}%</b> {{ 'after your pass' if d.passed else 'until your live test passes' }}. <a href="{{ url_for('settings_page') }}">Change it in Settings</a>.</p>
+{% endif %}
+{% if not d.risk.spreads_set %}
+<p class="flash error">Your spreads are still the defaults. Enter your real Exness Standard spreads in <a href="{{ url_for('settings_page') }}">Settings</a>, or every number here is off.</p>
+{% endif %}
+
+<section class="card">
+  <h2>Live test (the one that decides)</h2>
+  <p>{{ vpill(d.live.verdict, d.live.verdict_text) }}</p>
+  {{ bar(d.live.progress) }}
+  <p class="muted small">{{ d.live.n }} of {{ d.rules.decision }} finished live Takes. First read at {{ d.rules.first }}. Only setups the site logged count, scored with the option you picked, after spread.</p>
+  {{ judgment_table(d.live) }}
+  <p class="small"><a href="{{ url_for('journal', decision='none') }}">Review waiting setups</a> · <a href="{{ url_for('home') }}">Find a setup</a></p>
+</section>
+
+<section class="card">
+  <h2>Practice (supporting only)</h2>
+  <p>{{ vpill(d.practice.verdict, d.practice.verdict_text) }}</p>
+  <p class="muted small">The same measures on the historical practice charts. They're faster to collect, but you may half-remember those markets, so practice never decides on its own.</p>
+  {{ judgment_table(d.practice) }}
+  <p class="small"><a href="{{ url_for('practice') }}">Continue practice</a></p>
+</section>
+
+<section class="card">
+  <h2>Your recorded trades (demo or real)</h2>
+  {% if d.real.n %}
+  <div class="grid three">
+    <div class="stat"><div class="muted small">Trades · total</div><div class="big">{{ d.real.n }} · {{ rfmt(d.real.total_R) }}</div></div>
+    <div class="stat"><div class="muted small">Below best point · losses in a row</div><div class="big">{{ '%.1f' % d.real.drawdown }}R · {{ d.real.loss_streak }}</div></div>
+    <div class="stat"><div class="muted small">Execution gap (yours minus system)</div><div class="big">{{ rfmt(d.real.gap) }}</div></div>
+  </div>
+  {% if d.real.gap_warn %}<p class="flash error small">Your results average more than {{ '%.1f' % (-d.rules.gap) }}R per trade worse than the system's on the same setups. Entries, exits or spread are costing you.</p>{% endif %}
+  <div class="tablewrap"><table class="rtable">
+    <thead><tr><th>Closed</th><th>Pair</th><th class="num">Your R</th><th class="num">System R</th><th></th></tr></thead>
+    <tbody>{% for t in d.real.recent %}
+      <tr><td data-label="Closed">{{ loc(t.when) if t.when else '—' }}</td><td data-label="Pair">{{ t.pair }}</td>
+        <td class="num" data-label="Your R">{{ rfmt(t.R) }}</td><td class="num" data-label="System R">{{ rfmt(t.sys_R) }}</td>
+        <td data-label=""><a href="{{ url_for('setup', sid=t.setup_id) }}">open</a></td></tr>
+    {% endfor %}</tbody>
+  </table></div>
+  {% else %}
+  <p class="muted">No trades recorded yet. When you place a trade (demo or real), open its setup and fill in your entry, exit and result in R under "Previous reviews". Trades not recorded there don't count.</p>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>The rules</h2>
+  <ul class="small">
+    <li><b>Under {{ d.rules.first }} finished live Takes:</b> too early, keep reviewing.</li>
+    <li><b>At {{ d.rules.first }}:</b> if your edge vs chance has z ≤ −2, stop real money and go back to demo.</li>
+    <li><b>At {{ d.rules.decision }}: PASS</b> if your edge vs chance is positive with z ≥ 2 <b>and</b> your Takes beat your Skips. Otherwise FAIL: stay on demo or stop.</li>
+    <li><b>Risk:</b> demo, or at most {{ '%g' % d.rules.before }}% per trade before a pass; up to {{ '%g' % d.rules.after }}% for the next {{ d.rules.decision }} trades after; never above {{ '%g' % d.rules.max }}%.</li>
+    <li><b>Pause</b> (back to demo) at {{ '%g' % d.rules.dd }}R below your best point, or {{ d.rules.streak }} losses in a row.</li>
+    <li>Record every trade you place. The site never places orders.</li>
+  </ul>
+</section>
+{% endblock %}

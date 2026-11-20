@@ -154,10 +154,15 @@ def maybe_send_digest(store, settings: dict, now: pd.Timestamp, base: str) -> st
         lines.append(f"- {r['pair']} {r['direction']} {r['range_tf']} at {_loc(r['first_seen'], tz)}: "
                      f"{'matches' if r.get('recommended') else 'filtered'}, best option {state}"
                      f"{' ' + format(st['R'], '+.2f') + 'R' if st and st.get('R') is not None and state not in ('open',) else ''}")
+    try:
+        from . import plan
+        lines.append(plan.digest_line(store, settings))
+    except Exception:                       # the summary must not fail because of this line
+        pass
     text = "\n".join(lines) + f"\n\nJournal: {base}/journal\nPerformance: {base}/performance"
     html = ('<div style="font-family:Arial,sans-serif;color:#0F1B2D;max-width:600px">'
             + "".join(f"<p>{escape(x)}</p>" for x in lines)
-            + f'<p><a href="{base}/journal">Journal</a> · <a href="{base}/performance">Performance</a></p></div>')
+            + f'<p><a href="{base}/plan">My test</a> · <a href="{base}/journal">Journal</a> · <a href="{base}/performance">Performance</a></p></div>')
     try:
         mailer.send(to, f"CRT Scanner daily summary · {ny:%a %d %b}", html, text, tags=["owner-digest"])
         return "daily summary emailed"

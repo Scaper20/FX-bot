@@ -23,7 +23,7 @@ from pathlib import Path
 DEFAULT_SETTINGS = {
     "spreads": {"GBPUSD": 0.00010, "XAUUSD": 0.35},
     "balance": 1000.0,
-    "risk_pct": 1.0,
+    "risk_pct": 0.25,          # docs/plan-judgment.md: 0.25% until the test passes
     "contract": {"GBPUSD": 100000, "XAUUSD": 100},
     "tz": "Africa/Lagos",
     "daily_credit_limit": 780,

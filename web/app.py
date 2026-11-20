@@ -21,7 +21,7 @@ from engine.feeds.twelvedata import CALLS_PER_SCAN, FeedError, TwelveDataFeed, f
 from engine.live import ENGINE_VERSION, TRIGGER_LABEL, load_stats
 from engine.sessions import LONDON, NEW_YORK
 
-from . import chartdata, charts, community, insights, mailer, service
+from . import chartdata, charts, community, insights, mailer, plan, service
 from .store import StoreError, from_env, merged_settings
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -347,6 +347,7 @@ def create_app(store=None, feed=None, now_fn=None) -> Flask:
                 "alerts": {"new": bool(f.get("alert_new")), "outcomes": bool(f.get("alert_outcomes")),
                            "digest": bool(f.get("alert_digest")), "filtered": bool(f.get("alert_filtered")),
                            "max_per_day": int(_num(f.get("alert_max"), 30))},
+                "spreads_confirmed": True,
                 "last_digest": st.get("last_digest", ""), "alert_count": st.get("alert_count", {}),
             }
             if not (0 < new["spreads"]["GBPUSD"] < 0.01 and 0 < new["spreads"]["XAUUSD"] < 20
@@ -537,6 +538,11 @@ def create_app(store=None, feed=None, now_fn=None) -> Flask:
         return render_template("p_me.html", st=community.user_stats(store(), session["pu"]),
                                prog=community.progress(store(), session["pu"]),
                                user=store().community_user(session["pu"]))
+
+    @app.route("/plan")
+    @login_required
+    def plan_page():
+        return render_template("plan.html", d=plan.build(store(), settings()))
 
     @app.route("/insights")
     @login_required

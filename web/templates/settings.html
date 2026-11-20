@@ -7,6 +7,7 @@
   <h2>Trading</h2>
   <form method="post">
     <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+    {% if not st.get('spreads_confirmed') %}<p class="flash error small">Spreads are still the defaults. Enter your real Exness Standard spreads and save, or every result is off.</p>{% endif %}
     <label for="sg">GBP/USD spread (pips, include slippage)</label>
     <input id="sg" name="spread_GBPUSD_pips" inputmode="decimal" value="{{ '%.2f' % (st.spreads.GBPUSD * 10000) }}">
     <label for="sx">Gold spread (dollars, e.g. 0.35)</label>
@@ -15,6 +16,7 @@
     <input id="bal" name="balance" inputmode="decimal" value="{{ st.balance }}">
     <label for="risk">Risk per trade (%)</label>
     <input id="risk" name="risk_pct" inputmode="decimal" value="{{ st.risk_pct }}">
+    <p class="muted small">My test plan: at most 0.25% until your live test passes, 0.5% after, never above 1%. See <a href="{{ url_for('plan_page') }}">My test</a>.</p>
     <label for="cg">GBP/USD contract size (units per lot)</label>
     <input id="cg" name="contract_GBPUSD" inputmode="numeric" value="{{ st.contract.GBPUSD | int }}">
     <label for="cx">Gold contract size (ounces per lot)</label>
