@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>{% block title %}CRT Scanner{% endblock %}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=Instrument+Serif&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230F1B2D'/%3E%3Crect x='9' y='10' width='4' height='12' fill='%230B7A5A'/%3E%3Crect x='19' y='7' width='4' height='14' fill='%23C8473B'/%3E%3C/svg%3E">
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="{{ url_for('home') }}">CRT Scanner</a>
+    {% if session.get('ok') %}
+    <div class="clock" aria-label="Market sessions">
+      <span class="sess {{ 'on' if clock.london }}">London {{ 'open' if clock.london else 'closed' }}</span>
+      <span class="sess {{ 'on' if clock.newyork }}">New York {{ 'open' if clock.newyork else 'closed' }}</span>
+      {% if clock.overlap %}<span class="sess on">Overlap</span>{% endif %}
+      <span class="sess">Lagos {{ clock.local }} · {{ clock.utc }} UTC</span>
+    </div>
+    {% endif %}
+  </div>
+</header>
+{% if session.get('ok') %}
+<nav class="tabs" aria-label="Main">
+  <div class="wrap">
+    <a href="{{ url_for('home') }}" class="{{ 'active' if nav == 'home' }}">Find a setup</a>
+    <a href="{{ url_for('practice') }}" class="{{ 'active' if nav and nav.startswith('practice') }}">Practice</a>
+    <a href="{{ url_for('journal') }}" class="{{ 'active' if nav == 'journal' }}">Journal</a>
+    <a href="{{ url_for('performance') }}" class="{{ 'active' if nav == 'performance' }}">Performance</a>
+    <a href="{{ url_for('strategy') }}" class="{{ 'active' if nav == 'strategy' }}">Strategy</a>
+    <a href="{{ url_for('backtest') }}" class="{{ 'active' if nav == 'backtest' }}">Backtest</a>
+    <a href="{{ url_for('settings_page') }}" class="{{ 'active' if nav == 'settings_page' }}">Settings</a>
+    <a href="{{ url_for('help_page') }}" class="{{ 'active' if nav == 'help_page' }}">Help</a>
+    <a href="{{ url_for('logout') }}">Log out</a>
+  </div>
+</nav>
+{% endif %}
+<main class="wrap">
+  {% with msgs = get_flashed_messages(with_categories=true) %}
+    {% for cat, m in msgs %}<div class="flash {{ cat }}" role="status">{{ m }}</div>{% endfor %}
+  {% endwith %}
+  {% if dev %}<div class="flash info small">Local test mode: replayed historical data, not live prices.</div>{% endif %}
+  {% block content %}{% endblock %}
+</main>
+<footer>
+  Setups that match your written rules, with their historical results. Not advice, not a signal service; the site never places orders.
+  Engine {{ engine_version }}.
+</footer>
+</body>
+</html>

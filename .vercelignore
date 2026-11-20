@@ -1,0 +1,11 @@
+# Keep deployments small. Leading "/" = only the top-level folder (engine/data and web/data are needed).
+/data/
+/backtest/
+/tests/
+/docs/
+/scripts/
+/db/
+/local_store.json
+*.png
+.pytest_cache/
+__pycache__/

@@ -109,8 +109,15 @@ def _options(pair: str, range_tf: str, entry_tf: str, o: dict, mirrored: bool, s
         if m.startswith("M2") and not (o["targets"]["T1"] < o["entry"]):
             continue
         reward = o["entry"] - tgt
-        chance = risk / (risk + reward)
-        breakeven = (risk + spread) / (risk + reward)
+        if m.startswith("M2"):
+            r1 = o["entry"] - o["targets"]["T1"]
+            p_win = risk / (risk + r1)                    # half banked at 50% before the stop
+            p_target = p_win * r1 / reward                # then the rest reaches target before entry
+            breakeven = None                              # mixed outcome sizes: see expected R instead
+        else:
+            p_win = p_target = risk / (risk + reward)
+            breakeven = (risk + spread) / (risk + reward)
+        chance = p_win
         st = option_stats(pair, range_tf, entry_tf, o["trigger"], o["entry_type"], o["stop_type"], m)
         out.append({
             "id": f"{entry_tf}-{o['trigger']}-{o['entry_type']}-{o['stop_type']}-{m}",
@@ -120,7 +127,9 @@ def _options(pair: str, range_tf: str, entry_tf: str, o: dict, mirrored: bool, s
             "target": _real(tgt, mirrored), "t1": _real(o["targets"]["T1"], mirrored),
             "market": bool(o["market"]), "rr": round(float(rr), 2), "risk": float(risk),
             "cost_share": round(float(cost_share), 3), "chance": round(float(chance), 3),
-            "breakeven": round(float(breakeven), 3),
+            "p_target": round(float(p_target), 3),
+            "breakeven": None if breakeven is None else round(float(breakeven), 3),
+            "chance_avg_R": round(-float(cost_share), 3),
             "decision_time": o["decision_time"].isoformat(), "session": o["session"],
             "killzone": o["killzone"] or "", "friday_late": bool(o["friday_late"]),
             "recommended": bool(rules["session_ok"] and rules["direction_ok"]),
@@ -133,9 +142,12 @@ def _options(pair: str, range_tf: str, entry_tf: str, o: dict, mirrored: bool, s
 
 
 def _rank_key(op: dict):
+    """Recommended first; then options with enough history (30+ trades) by their shrunk average;
+    options with too little history last, cheapest spread first."""
     s = op["stats"]
-    score = s["score"] if s else -9.0
-    return (op["recommended"], score, -op["cost_share"])
+    enough = bool(s and s["enough"])
+    score = s["score"] if enough else -9.0
+    return (op["recommended"], enough, score, -op["cost_share"])
 
 
 def _candles(df: pd.DataFrame, start_ns: int | None = None, count: int = 60) -> list:

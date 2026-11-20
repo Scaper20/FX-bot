@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% from "_macros.html" import dir_pill, status_pill, history, review_form with context %}
+{% block title %}{{ card.pair }} {{ card.direction }} {{ card.range_tf }} · CRT Scanner{% endblock %}
+{% block content %}
+<section class="card">
+  <div class="setup-head">
+    <h1 style="font-size:28px">{{ card.pair }} {{ dir_pill(card.direction) }} <span class="pill">{{ card.range_tf }} CRT</span>
+      {% if card.recommended %}<span class="pill rec">matches your rules</span>{% else %}<span class="pill warn">a rule is not met</span>{% endif %}</h1>
+    <span class="muted small">Logged {{ loc(row.first_seen) }} · engine {{ row.engine }}</span>
+  </div>
+  <div class="kv">
+    <div><span>Range high</span><b>{{ price(card.pair, card.range_high) }}</b></div>
+    <div><span>Range low</span><b>{{ price(card.pair, card.range_low) }}</b></div>
+    <div><span>50% level</span><b>{{ price(card.pair, card.range_mid) }}</b></div>
+    <div><span>Sweep extreme</span><b>{{ price(card.pair, card.sweep_extreme) }}</b></div>
+  </div>
+  <div class="charts">
+    <figure style="margin:0"><figcaption class="small muted">{{ card.range_tf }}: range candle (amber band), sweep candle (blue band)</figcaption>{{ charts.range | safe }}</figure>
+    <figure style="margin:0"><figcaption class="small muted">{{ card.chart.entry_tf }} entry chart{% if op %} · showing option: {{ op.entry_type }} / {{ op.stop_type }} / {{ op.mgmt }}{% endif %}</figcaption>{{ charts.entry | safe }}</figure>
+  </div>
+  <details><summary>Chart in words</summary><p>{{ text }}</p></details>
+</section>
+
+<section class="card">
+  <h2>Entry options, ranked</h2>
+  <p class="muted small">Ranked by each option's 2021–2024 average result, pulled towards the overall average when the sample is small. <b>No option has shown an edge on unseen data</b>; "chance win rate" is what a coin-flip market gives for these stop and target distances, and the spread makes break-even a little harder than that.</p>
+  <div class="tablewrap"><table class="rtable">
+    <thead><tr><th>#</th><th>Option</th><th class="num">Entry</th><th class="num">Stop</th><th class="num">Target</th><th class="num">R:R</th><th class="num">Chance</th><th class="num">Break-even</th><th>History 2021–24</th><th class="num">Lots</th><th>Tracked outcome</th></tr></thead>
+    <tbody>
+    {% for o in (ops if show_all else ops[:5]) %}
+      {% set lot = lot_size(card.pair, o.entry, o.stop) %}
+      <tr class="{{ 'best' if op and o.id == op.id }}">
+        <td class="num" data-label="Rank">{{ loop.index }}</td>
+        <td class="full" data-label="Option"><a href="{{ url_for('setup', sid=card.id, option=o.id, all='1' if show_all else None) }}">{{ o.entry_tf }} {{ o.trigger }}</a><br>
+          <span class="small">{{ labels.entry[o.entry_type] }}; stop: {{ labels.stop[o.stop_type] | lower }}; {{ labels.mgmt[o.mgmt] | lower }}</span>
+          {% if not o.recommended %}<br><span class="pill warn">rule not met: {{ 'session' if not o.rules.session_ok else 'direction' }}</span>{% endif %}
+          {% if o.seen_at and o.seen_at != row.first_seen %}<br><span class="pill info">added {{ loc(o.seen_at) }}</span>{% endif %}</td>
+        <td class="num" data-label="Entry">{{ price(card.pair, o.entry) }}</td><td class="num" data-label="Stop">{{ price(card.pair, o.stop) }}</td><td class="num" data-label="Target">{{ price(card.pair, o.target) }}</td>
+        <td class="num" data-label="Reward : risk">1:{{ '%.1f' % o.rr }}</td><td class="num" data-label="Chance win rate">{{ pct(o.chance) }}</td><td class="num" data-label="Break-even win rate">{{ pct(o.breakeven) if o.breakeven else '—' }}</td>
+        <td class="small" data-label="History 2021–24">{{ history(o.stats) }}</td>
+        <td class="num" data-label="Lots">{{ '%.2f' % lot.lots if not lot.too_small else '<0.01' }} <span class="muted small">${{ lot.risk_amount }}</span></td>
+        <td data-label="Tracked outcome">{{ status_pill(status.get(o.id)) }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  {% if ops | length > 5 and not show_all %}<p><a href="{{ url_for('setup', sid=card.id, all='1') }}">Show all {{ ops | length }} options</a></p>{% endif %}
+  <p class="muted small">Lots use your balance ${{ settings.balance }} and {{ settings.risk_pct }}% risk (Settings). Gold: 1 lot = {{ settings.contract.XAUUSD | int }} oz; GBP/USD: 1 lot = {{ settings.contract.GBPUSD | int }} units. Prices come from Twelve Data and can differ slightly from Exness: check your chart before entering.</p>
+</section>
+
+<div class="grid two">
+<section class="card">
+  <h2>Checklist</h2>
+  {% set groups = [] %}
+  <ul class="checks">
+  {% for c in card.checks %}
+    {% if loop.first or c.group != card.checks[loop.index0 - 1].group %}<li class="group-title">{{ c.group }}</li>{% endif %}
+    <li class="{{ 'yes' if c.ok else 'no' }}"><span class="mark" aria-hidden="true">{{ '✓' if c.ok else '✗' }}</span><span><span class="sr">{{ 'yes' if c.ok else 'no' }}: </span>{{ c.label }}{% if c.note %} <span class="muted small">({{ c.note }})</span>{% endif %}</span></li>
+  {% endfor %}
+  </ul>
+  <p class="muted small">In 2021–2023, none of these conditions changed how often targets were reached compared with chance (backtest page). Your judgment is what is being tested.</p>
+</section>
+
+<section class="card">
+  <h2>Your review</h2>
+  {{ review_form(url_for('review', sid=card.id), ops, op.id if op else None) }}
+  {% if reviews %}
+  <h3>Previous reviews</h3>
+  {% for r in reviews %}
+  <div class="card flat small">
+    <b>{{ r.decision | capitalize }}</b> · {{ loc(r.created_at) }}{% if r.confidence %} · confidence {{ r.confidence }}/5{% endif %}<br>
+    {% if r.option_id %}Option: {{ r.option_id }}<br>{% endif %}
+    {% if r.reasons %}Reasons: {% for x in r.reasons %}{{ labels.reasons.get(x, x) }}{{ ', ' if not loop.last }}{% endfor %}<br>{% endif %}
+    {% if r.notes %}<i>{{ r.notes }}</i><br>{% endif %}
+    {% if r.decision == 'take' %}
+    <form method="post" action="{{ url_for('review_result', rid=r.id) }}" class="row" style="margin-top:6px">
+      <input type="hidden" name="csrf" value="{{ csrf_token() }}"><input type="hidden" name="back" value="{{ request.path }}">
+      <input name="actual_entry" placeholder="your entry" value="{{ r.actual_entry or '' }}" style="width:110px" aria-label="Your entry price">
+      <input name="actual_exit" placeholder="your exit" value="{{ r.actual_exit or '' }}" style="width:110px" aria-label="Your exit price">
+      <input name="actual_r" placeholder="result in R" value="{{ r.actual_r or '' }}" style="width:100px" aria-label="Result in R">
+      <label class="row" style="margin:0;color:inherit"><input type="checkbox" name="closed" value="1" style="width:auto" {{ 'checked' if r.actual_closed_at }}> closed</label>
+      <button class="btn small" type="submit">Save my result</button>
+    </form>
+    {% endif %}
+  </div>
+  {% endfor %}
+  {% endif %}
+</section>
+</div>
+{% endblock %}

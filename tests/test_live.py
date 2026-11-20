@@ -37,7 +37,13 @@ def test_scan_cards_are_consistent(feed):
             assert op["rr"] >= K.MIN_RR
             assert pd.Timestamp(op["decision_time"]) <= now
             risk, reward = abs(op["stop"] - op["entry"]), abs(op["entry"] - op["target"])
-            assert op["chance"] == pytest.approx(risk / (risk + reward), abs=1e-3)
+            if op["mgmt"].startswith("M1"):
+                assert op["chance"] == pytest.approx(risk / (risk + reward), abs=1e-3)
+                assert op["breakeven"] > op["chance"]          # spread makes break-even harder
+            else:
+                r1 = abs(op["entry"] - op["t1"])
+                assert op["chance"] == pytest.approx(risk / (risk + r1), abs=1e-3)
+                assert op["p_target"] == pytest.approx(risk / (risk + r1) * r1 / reward, abs=1e-3)
             if c["direction"] == "short":
                 assert op["stop"] > op["entry"] > op["target"]
             else:

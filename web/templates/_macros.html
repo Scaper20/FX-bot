@@ -1,0 +1,88 @@
+{% macro dir_pill(d) -%}
+<span class="pill {{ d }}">{{ 'Long' if d == 'long' else 'Short' }}</span>
+{%- endmacro %}
+
+{% macro status_pill(st) -%}
+{%- if not st -%}<span class="pill">not tracked yet</span>
+{%- elif st.status == 'pending' -%}<span class="pill info">waiting for fill</span>
+{%- elif st.status == 'expired' -%}<span class="pill">not filled (expired)</span>
+{%- elif st.status == 'cancelled' -%}<span class="pill">cancelled: hit 50% first</span>
+{%- elif st.status == 'unknown' -%}<span class="pill">no data to track</span>
+{%- elif st.state == 'open' -%}<span class="pill warn">in trade {{ rfmt(st.R) }}</span>
+{%- elif st.state == 'target' -%}<span class="pill ok">target {{ rfmt(st.R) }}</span>
+{%- elif st.state == 'stop' -%}<span class="pill bad">stop {{ rfmt(st.R) }}</span>
+{%- elif st.state == 'breakeven' -%}<span class="pill ok">half + breakeven {{ rfmt(st.R) }}</span>
+{%- elif st.state == 'time' -%}<span class="pill">time exit {{ rfmt(st.R) }}</span>
+{%- else -%}<span class="pill">{{ st.status }}</span>{%- endif -%}
+{%- endmacro %}
+
+{% macro history(s) -%}
+{%- if not s -%}<span class="muted">no history</span>
+{%- elif not s.enough -%}<span class="muted">{{ s.n }} trades: too few to rank</span>
+{%- else -%}{{ s.n }} trades · avg <b class="mono">{{ rfmt(s.avg_R) }}</b> · win {{ pct(s.win_rate) }} <span class="muted small">({{ s.first[:4] }}–{{ s.last[:4] }})</span>
+{%- endif -%}
+{%- endmacro %}
+
+{% macro option_line(card, op) -%}
+{{ op.entry_tf }} · {{ labels.entry[op.entry_type] }} · stop {{ labels.stop[op.stop_type] | lower }} · {{ labels.mgmt[op.mgmt] | lower }}
+{%- endmacro %}
+
+{% macro summary_card(item, show_review=true) %}
+{% set card = item.card %}{% set row = item.row %}
+{% set op = card.options[0] %}
+{% set lot = lot_size(card.pair, op.entry, op.stop) %}
+<article class="card">
+  <div class="setup-head">
+    <div class="setup-title">{{ card.pair }} {{ dir_pill(card.direction) }} <span class="pill">{{ card.range_tf }} range</span>
+      {% if card.recommended %}<span class="pill rec">matches your rules</span>{% else %}<span class="pill warn">a rule is not met</span>{% endif %}</div>
+    <div class="muted small">first seen {{ loc(row.first_seen) }} · trigger {{ loc(op.decision_time) }}</div>
+  </div>
+  <p class="small" style="margin:6px 0 0">Best-ranked option: {{ option_line(card, op) }}</p>
+  <div class="kv">
+    <div><span>Entry</span><b>{{ price(card.pair, op.entry) }}</b></div>
+    <div><span>Stop</span><b>{{ price(card.pair, op.stop) }}</b></div>
+    <div><span>Target</span><b>{{ price(card.pair, op.target) }}</b></div>
+    <div><span>Reward : risk</span><b>1 : {{ '%.1f' % op.rr }}</b></div>
+    <div><span>Chance win rate</span><b>{{ pct(op.chance) }}</b></div>
+    <div><span>Break-even win rate</span><b>{{ pct(op.breakeven) if op.breakeven else '—' }}</b></div>
+    <div><span>Lot size ({{ settings.risk_pct }}% risk)</span><b>{{ '%.2f' % lot.lots if not lot.too_small else 'below 0.01' }}</b></div>
+    <div><span>Spread / risk</span><b>{{ pct(op.cost_share, 1) }}</b></div>
+  </div>
+  <p class="small" style="margin:4px 0">History of this option (2021–2024): {{ history(op.stats) }}</p>
+  {% if item.actionable %}<p class="small" style="margin:4px 0"><span class="pill ok">{{ item.actionable | length }} option(s) you can still act on</span></p>{% endif %}
+  <div class="row" style="margin-top:8px">
+    <a class="btn" href="{{ url_for('setup', sid=card.id) }}">Open, chart and review</a>
+    <span class="muted small">{{ card.options | length }} options</span>
+    {% if item.reviews %}<span class="pill ok">reviewed: {{ item.reviews[-1].decision }}</span>{% endif %}
+  </div>
+</article>
+{% endmacro %}
+
+{% macro review_form(action, options, best_id, submit="Save review") %}
+<form method="post" action="{{ action }}">
+  <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+  <fieldset>
+    <legend>Your decision</legend>
+    <div class="choices">
+      <label class="choice take"><input type="radio" name="decision" value="take" required><span>Take</span></label>
+      <label class="choice skip"><input type="radio" name="decision" value="skip"><span>Skip</span></label>
+      <label class="choice unsure"><input type="radio" name="decision" value="unsure"><span>Unsure</span></label>
+    </div>
+  </fieldset>
+  <label for="option_id">Which option would you use (for Take)</label>
+  <select id="option_id" name="option_id">
+    {% for o in options %}<option value="{{ o.id }}" {{ 'selected' if o.id == best_id }}>{{ loop.index }}. {{ o.entry_tf }} {{ o.entry_type }} / {{ o.stop_type }} / {{ o.mgmt }} — 1:{{ '%.1f' % o.rr }}</option>{% endfor %}
+  </select>
+  <fieldset>
+    <legend>Why (tick all that apply)</legend>
+    <div class="tags">
+      {% for key, label in reasons %}<label><input type="checkbox" name="reasons" value="{{ key }}"> {{ label }}</label>{% endfor %}
+    </div>
+  </fieldset>
+  <label for="confidence">Confidence (1 low – 5 high)</label>
+  <select id="confidence" name="confidence"><option value="">—</option>{% for i in range(1, 6) %}<option>{{ i }}</option>{% endfor %}</select>
+  <label for="notes">Notes: what do you see that the rules don't?</label>
+  <textarea id="notes" name="notes" rows="3" maxlength="2000"></textarea>
+  <p><button type="submit">{{ submit }}</button></p>
+</form>
+{% endmacro %}

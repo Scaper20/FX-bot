@@ -5,3 +5,6 @@ __pycache__/
 .env
 *.env
 backtest/out/
+local_store.json
+.env
+.venv/

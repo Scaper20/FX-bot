@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% from "_macros.html" import summary_card, dir_pill with context %}
+{% block content %}
+<section class="card hero">
+  <h1>Find me a setup</h1>
+  <p class="muted">Scans GBP/USD and gold for CRT setups that match your rules, with entry options ranked by their 2021–2024 history. You make the call.</p>
+  <form method="post" action="{{ url_for('scan_now') }}" class="row">
+    <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+    <button class="btn big" type="submit">Find me a setup</button>
+    <span class="muted small">
+      {% if d.last %}Last scan {{ loc(d.last.started_at) }} ({{ d.last.trigger }}){% else %}No scan yet{% endif %}
+      · data credits today {{ credits }}/{{ settings.daily_credit_limit }} ({{ calls }} per scan)
+    </span>
+  </form>
+  {% if last_any and not last_any.ok %}<p class="flash error small">Last scan attempt failed: {{ last_any.message }}</p>{% endif %}
+  {% if d.last and d.last.result and d.last.result.errors %}<p class="flash error small">{{ d.last.result.errors | join('; ') }}</p>{% endif %}
+</section>
+
+{% if todo %}
+<div class="note">You have <b>{{ todo | length }}</b> logged setup(s) without your review.
+  <a href="{{ url_for('setup', sid=todo[0].id) }}">Review the latest</a> · <a href="{{ url_for('journal', decision='none') }}">see all</a></div>
+{% endif %}
+
+<h2 style="margin-top:22px">Matches your rules, still actionable</h2>
+{% for item in d.cards %}{{ summary_card(item) }}{% else %}
+<div class="card empty">
+  <h2>Nothing qualifies right now</h2>
+  <p class="muted">No CRT that meets your rules has an entry you can still take. That's a normal, honest answer: the market doesn't owe us a setup. Check the armed list below, or come back after the next scan.</p>
+</div>
+{% endfor %}
+
+{% if d.other %}
+<details class="card flat">
+  <summary>{{ d.other | length }} actionable CRT(s) filtered out by your rules (session or direction)</summary>
+  {% for item in d.other %}{{ summary_card(item) }}{% endfor %}
+</details>
+{% endif %}
+
+<h2 style="margin-top:22px">Armed: waiting for the entry trigger</h2>
+{% if d.armed %}
+<ul class="card list">
+{% for a in d.armed %}
+  <li><b>{{ a.pair }}</b> {{ dir_pill(a.direction) }} <span class="pill">{{ a.range_tf }} range {{ loc(a.range_open, '%a %H:%M') }}, sweep on candle +{{ a.k }}</span><br>
+    Range <span class="mono">{{ price(a.pair, a.range_low) }} – {{ price(a.pair, a.range_high) }}</span>, swept to <span class="mono">{{ price(a.pair, a.sweep_extreme) }}</span>.
+    <span class="muted">Waiting for a CISD or MSS until {{ loc(a.window_end) }}.</span></li>
+{% endfor %}
+</ul>
+{% else %}<p class="muted">None right now.</p>{% endif %}
+
+<h2 style="margin-top:22px">Watch: sweeping right now</h2>
+{% if d.watch %}
+<ul class="card list">
+{% for w in d.watch %}
+  {% set lvl = w.range_high if w.direction == 'short' else w.range_low %}
+  <li><b>{{ w.pair }}</b> {{ dir_pill(w.direction) }} <span class="pill">{{ w.range_tf }}{% if w.k == 2 %}, second candle{% endif %}</span><br>
+    The forming {{ w.range_tf }} candle went {{ 'above' if w.direction == 'short' else 'below' }} the previous {{ 'high' if w.direction == 'short' else 'low' }}
+    <span class="mono">{{ price(w.pair, lvl) }}</span> (to <span class="mono">{{ price(w.pair, w.extreme) }}</span>).
+    Price now <span class="mono">{{ price(w.pair, w.price) }}</span>, {{ '<b>back inside</b>' | safe if w.back_inside else 'still outside' }}.
+    <span class="muted">Candle closes {{ loc(w.closes_at) }}.</span></li>
+{% endfor %}
+</ul>
+<p class="muted small">A CRT only forms if the candle closes back inside the range. Nothing to do yet; this is a heads-up.</p>
+{% else %}<p class="muted">Nothing sweeping a previous candle right now.</p>{% endif %}
+
+{% if d.in_play %}
+<details class="card flat">
+  <summary>{{ d.in_play | length }} setup(s) already in play (entry passed; tracked for the record)</summary>
+  {% for item in d.in_play %}{{ summary_card(item) }}{% endfor %}
+</details>
+{% endif %}
+{% endblock %}

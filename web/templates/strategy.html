@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Strategy · CRT Scanner{% endblock %}
+{% block content %}
+<h1>Strategy (v1.3, assisted mode)</h1>
+<div class="note">The system recommends; you decide. These rules have <b>not</b> shown an edge on data they were not tuned on (see Backtest). The site's job is to find setups that match your rules quickly, show their honest numbers, and measure whether your judgment adds something.</div>
+<section class="card">
+  <h2>What counts as a setup (CRT)</h2>
+  <ol>
+    <li><b>Range candle:</b> a finished D1 or H4 candle on Exness server time (GMT+0). Its high, low and 50% level are the range.</li>
+    <li><b>Sweep:</b> the next candle (or the one after, if the middle candle stayed inside) trades beyond one side and <b>closes back inside</b>. Sweeping both sides doesn't count.</li>
+    <li><b>Trigger</b> on a lower timeframe (D1 → H1 or M15; H4 → M15 or M5): a <b>CISD</b> (close beyond the open of the run of candles that made the sweep) or an <b>MSS</b> (close beyond the last swing before the sweep). The setup is <i>armed</i> until then, for up to two range candles. If price goes past the sweep extreme first, it is cancelled.</li>
+  </ol>
+</section>
+<section class="card">
+  <h2>Your rules: what gets recommended</h2>
+  <ul>
+    <li>Trigger in the <b>London</b> (07:00–16:00 London) or <b>New York</b> (08:00–17:00 New York) session, not Friday after 15:00 New York.</li>
+    <li><b>With the daily direction</b> (last daily close beyond a swing high = up, beyond a swing low = down), <b>or</b> against it only when the sweep ran into an older higher-timeframe <b>order block or FVG on the left</b>.</li>
+    <li>At least <b>1 : 3</b> reward to risk after spread.</li>
+  </ul>
+  <p class="muted small">Setups that fail a rule are still listed, collapsed, so you can see what the rules removed.</p>
+</section>
+<section class="card">
+  <h2>Entry options</h2>
+  <ul>
+    <li><b>Entries:</b> market at the trigger close; limit at the lower-timeframe FVG (edge or middle); limit at the order block (open or middle). Order blocks count only if they took liquidity and left an FVG.</li>
+    <li><b>Stops, sized for the spread:</b> beyond the sweep extreme plus 2 spreads (default), or plus 0.1 ATR; the tight FVG/OB stop is shown only when the spread is under 15% of the risk.</li>
+    <li><b>Targets:</b> the opposite side of the range or the next swing beyond it, all at once or half off at the 50% level with the stop moved to entry.</li>
+    <li><b>Ranking:</b> by each option's 2021–2024 average result, shrunk towards the overall average for small samples. Sample size is always shown.</li>
+  </ul>
+</section>
+<section class="card">
+  <h2>Shown as checklist, not as filters</h2>
+  <p>Killzone, FVG and order block present, both CISD and MSS, mid-timeframe MSS, HTF MSS, MSnR level, sweep candle size and depth. None of them changed results versus chance in 2021–2023, so they are information for your judgment, not rules.</p>
+  <p class="muted small">Option history: {{ meta.get('trades', '?') }} simulated trades from {{ meta.get('setups', '?') }} setups, {{ meta.get('period', '') }}. 2025–2026 data is kept untouched for a future one-time test.</p>
+</section>
+{% endblock %}

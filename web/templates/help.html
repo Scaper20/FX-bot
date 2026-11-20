@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Help · CRT Scanner{% endblock %}
+{% block content %}
+<h1>How to use this</h1>
+<section class="card">
+  <h2>Daily routine</h2>
+  <ol>
+    <li>During London or New York, open <b>Find a setup</b>. The site scans automatically every 15 minutes in those hours; the button scans now (costs 6 data credits).</li>
+    <li>Open each setup, look at the charts and the checklist, compare with your own Exness chart.</li>
+    <li><b>Record your call</b>: Take, Skip or Unsure, which option, and why. This is the most valuable click on the site.</li>
+    <li>If you trade it, add your real entry, exit and result later (Journal → the setup).</li>
+    <li>Do a few <b>Practice</b> setups when the market is quiet: past setups shown blind, outcome revealed after your call.</li>
+  </ol>
+</section>
+<section class="card">
+  <h2>What the numbers mean</h2>
+  <ul>
+    <li><b>Reward : risk</b>: distance to the target ÷ distance to the stop, after the spread.</li>
+    <li><b>Chance win rate</b>: how often a random market would reach the target before the stop with these distances. If your Takes beat it over many trades, your judgment adds something.</li>
+    <li><b>Break-even win rate</b>: the win rate needed to make money after the spread.</li>
+    <li><b>History</b>: how that exact option did in 2021–2024 with your rules applied. Small samples (under 30) aren't ranked. Even the best ones haven't held up on unseen data.</li>
+    <li><b>Lots</b>: size for your balance and risk % in Settings. Check against your Exness contract sizes.</li>
+    <li><b>Tracked outcome</b>: filled automatically from later candles with the same rules as the backtest (stop counts first if both are hit in one candle).</li>
+  </ul>
+</section>
+<section class="card">
+  <h2>Limits to keep in mind</h2>
+  <ul>
+    <li>Prices come from Twelve Data, not Exness; gold especially can differ by a little. Always check your own chart before entering.</li>
+    <li>Scans run every 15 minutes, so an M5 trigger can be up to 15 minutes old when you see it. Market entries older than two entry candles are not shown as actionable.</li>
+    <li>News isn't checked. Look at an economic calendar before trading.</li>
+    <li>Nothing here is advice or a promise. The site never places orders.</li>
+  </ul>
+</section>
+{% endblock %}
