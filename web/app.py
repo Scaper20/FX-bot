@@ -21,7 +21,7 @@ from engine.feeds.twelvedata import CALLS_PER_SCAN, FeedError, TwelveDataFeed, f
 from engine.live import ENGINE_VERSION, TRIGGER_LABEL, load_stats
 from engine.sessions import LONDON, NEW_YORK
 
-from . import charts, community, mailer, service
+from . import chartdata, charts, community, mailer, service
 from .store import StoreError, from_env, merged_settings
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -280,7 +280,8 @@ def create_app(store=None, feed=None, now_fn=None) -> Flask:
         op = service.option_by_id(card, card.get("best"))
         ch = charts.card_charts(card, op)
         return render_template("practice.html", item=item, card=card, op=op, charts=ch, prog=prog,
-                               text=charts.text_equivalent(card, op, settings()["tz"]))
+                               text=charts.text_equivalent(card, op, settings()["tz"]),
+                               chart_src=url_for("chart_practice", pid=item["id"]))
 
     @app.route("/practice/<pid>", methods=["POST"])
     @login_required
@@ -306,7 +307,8 @@ def create_app(store=None, feed=None, now_fn=None) -> Flask:
         op = service.option_by_id(card, chosen) or service.option_by_id(card, card.get("best"))
         ch = charts.card_charts(card, op, after=item.get("after"), decision=op["decision_time"] if op else None)
         return render_template("practice_result.html", item=item, card=card, op=op, charts=ch, reviews=rv,
-                               status=item["outcome"], prog=service.practice_progress(store()))
+                               status=item["outcome"], prog=service.practice_progress(store()),
+                               chart_src=url_for("chart_practice", pid=pid, option=op["id"] if op else None))
 
     @app.route("/strategy")
     @login_required
@@ -493,7 +495,8 @@ def create_app(store=None, feed=None, now_fn=None) -> Flask:
         card = item["card"]
         op = service.option_by_id(card, card.get("best"))
         return render_template("p_practice.html", item=item, card=card, op=op, prog=prog,
-                               charts=charts.card_charts(card, op), text=charts.text_equivalent(card, op, "UTC"))
+                               charts=charts.card_charts(card, op), text=charts.text_equivalent(card, op, "UTC"),
+                               chart_src=url_for("p_chart", pid=item["id"]))
 
     @app.route("/p/practice/<pid>", methods=["POST"])
     @public_user_required
@@ -520,7 +523,8 @@ def create_app(store=None, feed=None, now_fn=None) -> Flask:
         op = service.option_by_id(card, chosen) or service.option_by_id(card, card.get("best"))
         ch = charts.card_charts(card, op, after=item.get("after"), decision=op["decision_time"] if op else None)
         return render_template("p_result.html", item=item, card=card, op=op, charts=ch, reviews=mine,
-                               status=item["outcome"], prog=community.progress(store(), session["pu"]))
+                               status=item["outcome"], prog=community.progress(store(), session["pu"]),
+                               chart_src=url_for("p_chart", pid=pid, option=op["id"] if op else None))
 
     @app.route("/p/me")
     @public_user_required
@@ -569,6 +573,48 @@ def create_app(store=None, feed=None, now_fn=None) -> Flask:
         for k in ("pu", "pu_name"):
             session.pop(k, None)
         return redirect(url_for("p_start"))
+
+    # ------------------------------------------------------------ interactive chart data
+    def _tz_offset() -> int:
+        off = pd.Timestamp.now(tz=settings().get("tz", "Africa/Lagos")).utcoffset()
+        return int(off.total_seconds()) if off else 0
+
+    def _practice_payload(pid: str, answered: bool, tz_offset: int):
+        item = service.practice_item(pid)
+        if not item:
+            abort(404)
+        card = item["card"]
+        op = service.option_by_id(card, request.args.get("option")) or service.option_by_id(card, card.get("best"))
+        ch = chartdata.practice_chart(pid) or {}
+        before = ch.get("before") or {}
+        after = ch.get("after") if answered else None           # outcome candles only after answering
+        return jsonify(chartdata.payload(card, op, before, after, tz_offset))
+
+    @app.route("/api/chart/setup/<sid>")
+    @login_required
+    def chart_setup(sid):
+        row = store().get_setup(sid)
+        if not row:
+            abort(404)
+        card = row["card"]
+        ops = service.all_options(row)
+        op = next((o for o in ops if o["id"] == request.args.get("option")), None) or \
+            service.option_by_id(card, card.get("best"))
+        before = card.get("chart", {}).get("tfs") or {}
+        newer = store().get_candles(card["pair"]) if before else {}
+        merged = {tf: chartdata.merge(before.get(tf, []), newer.get(tf, [])) for tf in before}
+        return jsonify(chartdata.payload(card, op, merged, None, _tz_offset()))
+
+    @app.route("/api/chart/practice/<pid>")
+    @login_required
+    def chart_practice(pid):
+        return _practice_payload(pid, answered=store().get_setup(pid) is not None, tz_offset=_tz_offset())
+
+    @app.route("/p/api/chart/<pid>")
+    @public_user_required
+    def p_chart(pid):
+        answered = any(r["item_id"] == pid for r in store().community_reviews(session["pu"]))
+        return _practice_payload(pid, answered=answered, tz_offset=0)
 
     # ------------------------------------------------------------ machine endpoints
     @app.route("/api/cron/scan", methods=["GET", "POST"])

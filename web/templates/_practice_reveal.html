@@ -1,6 +1,7 @@
 {% from "_macros.html" import status_pill with context %}
   {% if reviews %}{% set r = reviews[-1] %}<p>You said <b>{{ r.decision }}</b>{% if r.option_id and r.decision == 'take' %} with option {{ r.option_id }}{% endif %}.</p>{% endif %}
-  <div class="charts">
+  {% if chart_src %}<div class="ichart" data-src="{{ chart_src }}"></div>{% endif %}
+  <div class="charts static-charts">
     <figure style="margin:0">{{ charts.range | safe }}</figure>
     <figure style="margin:0"><figcaption class="small muted">Faded candles: what came after the trigger.</figcaption>{{ charts.entry | safe }}</figure>
   </div>

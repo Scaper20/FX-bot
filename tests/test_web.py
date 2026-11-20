@@ -260,3 +260,48 @@ def test_ore_sees_community_stats(env):
     login(c)
     page = c.get("/performance").get_data(as_text=True)
     assert "Community practice" in page and "Kemi" in page and "/p" in page
+
+
+# ------------------------------------------------------------ interactive chart data
+
+TF_SECONDS = {"M5": 300, "M15": 900, "H1": 3600, "H4": 14400, "D1": 86400}
+
+
+def test_practice_chart_hides_outcome_until_answered(env):
+    app, store, clock = env
+    if not service.practice_items():
+        pytest.skip("practice set not built")
+    c = app.test_client()
+    p_start(c, "Chartist")
+    page = c.get("/p/practice").get_data(as_text=True)
+    pid = re.search(r'action="/p/practice/(P-[^"]+)"', page).group(1)
+    assert f'data-src="/p/api/chart/{pid}"' in page
+    data = c.get(f"/p/api/chart/{pid}").get_json()
+    assert set(data["tfs"]) == {"M5", "M15", "H1", "H4", "D1"} and data["after"] == {}
+    item = service.practice_item(pid)
+    trigger = pd.Timestamp(item["card"]["decision_time"]).value // 10**9
+    for tf, rows in data["tfs"].items():
+        assert rows[-1][0] + TF_SECONDS[tf] <= trigger + 1, tf        # last candle closed by the trigger
+    other = next(p for p in service.practice_items() if p["id"] != pid)["id"]
+    assert c.get(f"/p/api/chart/{other}").get_json()["after"] == {}     # unanswered: still hidden
+    tok = csrf(c, "/p/practice")
+    c.post(f"/p/practice/{pid}", data={"csrf": tok, "decision": "skip"})
+    after = c.get(f"/p/api/chart/{pid}").get_json()["after"]
+    assert after and after["M5"] and after["M5"][0][0] >= data["tfs"]["M5"][-1][0]
+
+
+def test_live_setup_chart_has_all_timeframes_and_levels(env):
+    app, store, clock = env
+    c = app.test_client()
+    login(c)
+    service.run_scan(store, app.extensions["feed_factory"](), clock["now"], trigger="test", counts_credits=False)
+    sid = store.list_setups(source="live")[0]["id"]
+    assert f'data-src="/api/chart/setup/{sid}' in c.get(f"/setup/{sid}").get_data(as_text=True)
+    data = c.get(f"/api/chart/setup/{sid}").get_json()
+    assert set(data["tfs"]) == {"M5", "M15", "H1", "H4", "D1"}
+    titles = {lv["title"] for lv in data["levels"]}
+    assert {"Range high", "Range low", "Entry", "Stop", "Target"} <= titles
+    assert data["tz_offset"] == 3600                                   # Lagos
+    assert c.get("/api/chart/setup/does-not-exist").status_code == 404
+    anon = app.test_client()
+    assert anon.get(f"/api/chart/setup/{sid}").status_code == 302      # private: login needed

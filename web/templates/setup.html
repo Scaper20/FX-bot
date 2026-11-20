@@ -14,7 +14,8 @@
     <div><span>50% level</span><b>{{ price(card.pair, card.range_mid) }}</b></div>
     <div><span>Sweep extreme</span><b>{{ price(card.pair, card.sweep_extreme) }}</b></div>
   </div>
-  <div class="charts">
+  <div class="ichart" data-src="{{ url_for('chart_setup', sid=card.id, option=op.id if op else None) }}"></div>
+  <div class="charts static-charts">
     <figure style="margin:0"><figcaption class="small muted">{{ card.range_tf }}: range candle (amber band), sweep candle (blue band)</figcaption>{{ charts.range | safe }}</figure>
     <figure style="margin:0"><figcaption class="small muted">{{ card.chart.entry_tf }} entry chart{% if op %} · showing option: {{ op.entry_type }} / {{ op.stop_type }} / {{ op.mgmt }}{% endif %}</figcaption>{{ charts.entry | safe }}</figure>
   </div>

@@ -26,11 +26,13 @@ from backtest.pattern_stats import ore_rules  # noqa: E402
 from engine import config as K  # noqa: E402
 from engine.candles import clean, load_m1_csv  # noqa: E402
 from engine.feeds.replay import ReplayFeed  # noqa: E402
-from engine.live import ENGINE_VERSION, scan_pair, setup_id, track_card_options  # noqa: E402
+from engine.live import ENGINE_VERSION, TF_BARS, all_tf_candles, compact_candles, scan_pair, setup_id, track_card_options  # noqa: E402
 from engine.setups import Market  # noqa: E402
 
 CUTOFF = pd.Timestamp("2025-01-01", tz="UTC")
 OUT = ROOT / "web" / "data" / "practice.json.gz"
+CHARTS = ROOT / "web" / "data" / "practice_charts"
+AFTER_BARS = {"D1": 10, "H4": 30, "H1": 72, "M15": 160, "M5": 300}
 
 
 def candidates() -> pd.DataFrame:
@@ -71,11 +73,22 @@ def main() -> int:
         if not card or card["state"] != "ready" or not card["options"]:
             continue
         card["options"] = card["options"][:8]
+        card["chart"].pop("tfs", None)
         for op in card["options"]:
             op["stats"] = None                              # blind: no history in practice
         part = m1[pair][(m1[pair].index >= now - pd.Timedelta("130D")) & (m1[pair].index < now + pd.Timedelta("45D"))]
         fut = Market(part, data_end=min(now + pd.Timedelta("45D"), CUTOFF))
         outcome = track_card_options(fut, card, K.PAIRS[pair]["spread"])
+        before = all_tf_candles(mkt)                          # closed candles at the trigger, all timeframes
+        after = {}
+        for tf, n in AFTER_BARS.items():
+            last = before[tf][-1][0] if before[tf] else 0
+            df = fut.frames[tf]
+            later = df[df.index.as_unit("s").asi8 > last]
+            after[tf] = compact_candles(later.head(n), n)
+        CHARTS.mkdir(parents=True, exist_ok=True)
+        with gzip.open(CHARTS / f"P-{sid}.json.gz", "wt") as fh:
+            json.dump({"before": before, "after": after}, fh, separators=(",", ":"))
         etf = card["chart"]["entry_tf"]
         edf = fut.frames[etf]
         after = edf[edf.index >= now].head(96)

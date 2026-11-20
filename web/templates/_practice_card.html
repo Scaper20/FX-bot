@@ -5,7 +5,8 @@
       {% if card.recommended %}<span class="pill rec">matches {{ rules_owner }} rules</span>{% else %}<span class="pill warn">a rule is not met</span>{% endif %}</h2>
     <span class="muted small">{{ loc(card.decision_time, '%a %d %b %Y %H:%M') }}</span>
   </div>
-  <div class="charts">
+  {% if chart_src %}<div class="ichart" data-src="{{ chart_src }}"></div>{% endif %}
+  <div class="charts static-charts">
     <figure style="margin:0">{{ charts.range | safe }}</figure>
     <figure style="margin:0">{{ charts.entry | safe }}</figure>
   </div>

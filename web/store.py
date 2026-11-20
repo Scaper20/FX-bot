@@ -65,6 +65,7 @@ class MemoryStore:
         self.db.setdefault("community_users", {})
         self.db.setdefault("community_reviews", [])
         self.db.setdefault("community_codes", [])
+        self.db.setdefault("latest_candles", {})
         self.db.setdefault("community_emails", [])
 
     def _save(self):
@@ -236,6 +237,16 @@ class MemoryStore:
     def codes_since(self, iso: str, email: str | None = None) -> int:
         return sum(1 for r in self.db["community_codes"]
                    if r["created_at"] >= iso and (email is None or r["email"] == email))
+
+    def save_candles(self, rows: list[dict]) -> None:
+        with self.lock:
+            for r in rows:
+                self.db["latest_candles"][f"{r['pair']}|{r['tf']}"] = r["data"]
+            self._save()
+
+    def get_candles(self, pair: str) -> dict:
+        return {k.split("|")[1]: copy.deepcopy(v) for k, v in self.db["latest_candles"].items()
+                if k.startswith(pair + "|")}
 
     def email_log_add(self, row: dict) -> None:
         with self.lock:
@@ -435,6 +446,15 @@ class SupabaseStore:
         if email:
             p["email"] = f"eq.{email}"
         return len(self._req("GET", "community_codes", p) or [])
+
+    def save_candles(self, rows: list[dict]) -> None:
+        body = [{"pair": r["pair"], "tf": r["tf"], "data": r["data"], "updated_at": now_iso()} for r in rows]
+        self._req("POST", "latest_candles", {"on_conflict": "pair,tf"}, body=body,
+                  prefer="resolution=merge-duplicates,return=minimal")
+
+    def get_candles(self, pair: str) -> dict:
+        rows = self._req("GET", "latest_candles", {"pair": f"eq.{pair}", "select": "tf,data"}) or []
+        return {r["tf"]: r["data"] for r in rows}
 
     def email_log_add(self, row: dict) -> None:
         self._req("POST", "community_emails", body=row, prefer="return=minimal")

@@ -150,6 +150,21 @@ def _rank_key(op: dict):
     return (op["recommended"], enough, score, -op["cost_share"])
 
 
+TF_BARS = {"D1": 120, "H4": 180, "H1": 240, "M15": 300, "M5": 300}
+
+
+def compact_candles(df: pd.DataFrame, count: int) -> list:
+    """Last `count` candles as [unix_seconds, o, h, l, c] (small, for interactive charts)."""
+    x = df.tail(count)
+    t = (x.index.as_unit("s").asi8).tolist()
+    cols = [x[c].round(5).tolist() for c in ("open", "high", "low", "close")]
+    return [[t[i], cols[0][i], cols[1][i], cols[2][i], cols[3][i]] for i in range(len(t))]
+
+
+def all_tf_candles(mkt: Market) -> dict:
+    return {tf: compact_candles(mkt.frames[tf], n) for tf, n in TF_BARS.items()}
+
+
 def _candles(df: pd.DataFrame, start_ns: int | None = None, count: int = 60) -> list:
     x = df if start_ns is None else df[df.index.as_unit("ns").asi8 >= start_ns]
     x = x.tail(count)
@@ -248,6 +263,7 @@ def _finish_card(mkt: Market, c: dict) -> None:
     step = pd.Timedelta({"H1": "1h", "M15": "15min", "M5": "5min"}[etf]).value
     c["chart"]["entry"] = _candles(edf, (sw - 24 * step) if sw else None, 200)
     c["chart"]["entry_tf"] = etf
+    c["chart"]["tfs"] = all_tf_candles(mkt)
     c.pop("_i", None)
     c.pop("_mirrored", None)
 

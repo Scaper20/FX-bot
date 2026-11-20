@@ -11,7 +11,8 @@ import pandas as pd
 
 from engine import config as K
 from engine.feeds.twelvedata import CALLS_PER_SCAN, FeedError
-from engine.live import ENGINE_VERSION, ENTRY_LABEL, MGMT_LABEL, STOP_LABEL, scan, track_card_options
+from engine.live import (ENGINE_VERSION, ENTRY_LABEL, MGMT_LABEL, STOP_LABEL, all_tf_candles, scan,
+                         track_card_options)
 from engine.setups import Market
 
 PAIRS = tuple(K.PAIRS)
@@ -121,6 +122,11 @@ def run_scan(store, feed, now: pd.Timestamp | None = None, trigger: str = "manua
         raise ScanError(row["message"])
     spreads = {p: float(settings["spreads"][p]) for p in PAIRS}
     res = scan(markets, spreads)
+    try:
+        store.save_candles([{"pair": p, "tf": tf, "data": data}
+                            for p, m in markets.items() for tf, data in all_tf_candles(m).items()])
+    except Exception as e:                            # charts only; never fail a scan over it
+        errors.append(f"saving chart candles: {e}")
 
     ready_summary, new_ids = [], []
     for card in res["ready"]:
