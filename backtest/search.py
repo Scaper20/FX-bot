@@ -173,7 +173,7 @@ def search(df: pd.DataFrame, rng: np.random.Generator | None = None) -> pd.DataF
     out = []
     for (base, tf), g in df.groupby(["base", "tf"]):
         g = g.reset_index(drop=True)
-        hit, p, R = g["hit_T1"].to_numpy(float), g["p_T1"].to_numpy(float), g["R"].to_numpy(float)
+        hit, p, R = (np.array(g[k], dtype=float) for k in ("hit_T1", "p_T1", "R"))
         stage = np.where(g["time"] < pd.Timestamp(STAGE["find"][1], tz="UTC"), "find",
                          np.where(g["time"] < pd.Timestamp(STAGE["confirm"][1], tz="UTC"), "confirm", "check"))
         if rng is not None:
