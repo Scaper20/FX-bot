@@ -86,10 +86,10 @@ An earlier Python prototype, "Preflight bot v0.2" (Telegram bot for a different 
 - 20 Nov 2026: Ore answered the questions. Broker Exness MT5. Wants many variants tested, several setups shown at once, entry options ranked, and Claude free to research and improve. Knows no MSnR: treat as experimental. Rules written up in `docs/spec-v1.md`.
 - 20 Nov 2026: Ore approved spec v1, confirmed Exness server = GMT+0 (Sunday candle seen), account Exness Standard. Added HTF confluences (sweep into older HTF OB/FVG, HTF MSS) as spec v1.1.
 - 20 Nov 2026: v1.1 engine built (`engine/setups.py`), 30 tests pass. Design-period backtest (Nov 2021 to Dec 2023): **no edge** — best of 3,644 eligible variants t = 1.61, no better than random direction, rules fire as often on shuffled noise. Report: `backtest/reports/design_v1.md`. Check period (2024) deliberately not run yet.
+- 20 Nov 2026: Ore's chart feedback -> spec v1.2 (London/NY sessions, trade with daily direction or against only with HTF OB/FVG on the left, sweep-size limits, spread-aware stops, no Friday-late entries), pre-registered in `docs/spec-v1.2.md`. Design best: GBPUSD London +0.27 R (144 setups); gold 0/32 positive. **2024 Check run once: 1 of 11 finalists passed (likely luck); GBPUSD London filter -0.31 R in 2024.** Sessions filter helps consistently but results stay negative. **2024 has now been used once for v1.2.** Report: `backtest/reports/v12_report.md`.
 
 ## 11. Open items
-- [ ] Ore reviews the example charts (`backtest/reports/examples/`): are these CRTs he would take? Where do they differ from how he trades?
-- [ ] Ore's real Exness Standard spreads.
-- [ ] Decide v1.2 changes (design data only), then run Check (2024) once.
+- [ ] Ore's real Exness Standard spreads (costs are ~0.25 R per trade, decisive).
+- [ ] Decide what next after v1.2 failed Check (see `backtest/reports/v12_report.md`).
 - [ ] Confirm XAU/USD works on the Twelve Data free plan, and the live-versus-historical price gap. Key is not yet set in the cloud session.
 - [ ] Before going public: legal opinion (Nigeria SEC draft rules on online forex and CFD trading are not yet in force but could cover this), data and hosting licence checks, wording review.
