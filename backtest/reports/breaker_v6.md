@@ -22,3 +22,19 @@ Rule: consistent = positive in at least 4 of 5 years (2022–2026) and in total.
 1. **Inside a CRT, breakers hit targets at the chance rate or a little below**, like every other entry model tested. The tight stop gives bigger reward per trade but wins less often by the same amount, then spread makes it worse.
 2. **Standalone, the 3R target is hit less often than chance (19–21% vs 25%, z −3 to −8).** Price tends to come back after the shift rather than run on.
 3. **The one near-zero row (H1 classic, London/NY, +0.01R, 3 of 5 years)** is one slice out of 28, positive mainly in 2024 and 2026 and below chance on target hits. It isn't an edge. At most, it's something to watch on the live log.
+
+## v6b: breaker as the entry, three ways (spec addendum, run 20 Nov 2026)
+"edge" rows reproduce the v6 run exactly (same code path). Average R after spread; years positive of 5 (2022–2026).
+
+| Context | Stop | edge (limit at low) | mid (limit at 50%) | confirm (close back out) |
+|---|---|---|---|---|
+| In CRT, D1 → M15 | classic | −0.06 (2) | −0.10 (2) | −0.06 (2) |
+| In CRT, D1 → M15 | tight | −0.21 (0) | −0.37 (1) | −0.23 (1) |
+| In CRT, H4 → M5 | classic | −0.13 (0) | −0.16 (0) | −0.11 (0) |
+| In CRT, H4 → M5 | tight | −0.30 (0) | −0.52 (0) | −0.23 (0) |
+| Standalone H1, 3R | classic | −0.03 (3) | −0.03 (3) | +0.00 (2) |
+| Standalone H1, 3R | tight | −0.14 (0) | −0.15 (0) | −0.07 (0) |
+| Standalone M15, 3R | classic | −0.07 (0) | −0.11 (0) | −0.04 (0) |
+| Standalone M15, 3R | tight | −0.20 (0) | −0.31 (0) | −0.15 (0) |
+
+**0 of 24 consistent.** The confirmation entry loses least (it skips some breakers that fail straight away) but still doesn't make money. London/NY slices: best is H1 mid classic, positive in 4 of 5 years but −0.01R overall (fails the total). Walk-forward of all breaker variants: see `walkforward_v7.md`.

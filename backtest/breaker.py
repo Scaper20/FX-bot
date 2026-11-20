@@ -1,4 +1,5 @@
-"""Spec v6 (docs/spec-v6-breaker.md): ICT breaker blocks, inside a CRT and standalone. All years.
+"""Spec v6 + v6b (docs/spec-v6-breaker.md): ICT breaker blocks as the entry (edge, mid, confirm), inside a CRT
+and standalone. All years.
 
     python -m backtest.breaker
 """
@@ -49,16 +50,27 @@ def breakers(eo, eh, el, ec, lo, hi):
             pat = {"sh": sh, "sl": sl, "top": eh[j], "top_idx": j, "start": j}
 
 
-def fill_window(eh, Eo_t, Ec_t, j, top, last):
-    """Limit valid from the candle after the shift for VALID candles (to `last`), ending at the candle
-    that trades above the top (inclusive: price passes the entry on the way)."""
+def fill_window(eh, j, top, last):
+    """Candle range the order is valid in: from the candle after the shift for VALID candles (to `last`),
+    ending at the candle that trades above the top (inclusive: price passes the entry on the way)."""
     a, b = j + 1, min(j + VALID, last)
     if a > b:
         return None
     above = np.where(eh[a:b + 1] > top)[0]
-    if len(above):
-        b = a + above[0]
-    return (Eo_t[a], Ec_t[b])
+    return (a, a + above[0]) if len(above) else (a, b)
+
+
+def entries(eh, el, ec, b, span, Eo_t, Ec_t):
+    """The three entry kinds (spec v6b). Yields (kind, price, t_ns for market or None, limit window or None)."""
+    a, z = span
+    yield "edge", el[b], None, (Eo_t[a], Ec_t[z])
+    yield "mid", (eh[b] + el[b]) / 2, None, (Eo_t[a], Ec_t[z])
+    touched = False
+    for x in range(a, z + 1):
+        touched = touched or eh[x] >= el[b]
+        if touched and ec[x] < el[b]:
+            yield "confirm", ec[x], Ec_t[x], None
+            break
 
 
 def run_pair(pair):
@@ -71,9 +83,9 @@ def run_pair(pair):
     for tf, E in frames.items():
         times[tf] = (E.index.as_unit("ns").asi8, pd.DatetimeIndex(E["close_time_utc"]).as_unit("ns").asi8)
 
-    def score(out, mir, e, stop, t1, t2, window, **tags):
+    def score(out, mir, e, stop, t1, t2, t_ns, window, **tags):
         sg = -1.0 if mir else 1.0
-        res = out("long" if mir else "short", sg * e, sg * stop, None if t1 is None else sg * t1, sg * t2, None, window)
+        res = out("long" if mir else "short", sg * e, sg * stop, None if t1 is None else sg * t1, sg * t2, t_ns, window)
         if res:
             res.update(pair=pair, direction="long" if mir else "short", **tags)
             rows.append(res)
@@ -87,14 +99,14 @@ def run_pair(pair):
         for mir in (False, True):
             eo, eh, el, ec = arrays(E, mir)
             for j, b, top, _ in breakers(eo, eh, el, ec, first, len(E) - 1):
-                w = fill_window(eh, Eo_t, Ec_t, j, top, len(E) - 1)
-                if w is None:
+                span = fill_window(eh, j, top, len(E) - 1)
+                if span is None:
                     continue
-                e = el[b]
-                for stop_name, stop in (("classic", top), ("tight", eh[b])):
-                    if stop > e:
-                        score(out, mir, e, stop, None, e - 3 * (stop - e), w,
-                              variant=f"B standalone {tf} {stop_name}", tf=tf)
+                for kind, e, t_ns, w in entries(eh, el, ec, b, span, Eo_t, Ec_t):
+                    for stop_name, stop in (("classic", top), ("tight", eh[b])):
+                        if stop > e:
+                            score(out, mir, e, stop, None, e - 3 * (stop - e), t_ns, w,
+                                  variant=f"B standalone {tf} {kind} {stop_name}", tf=tf, entry=kind)
 
     # ---- A. inside a CRT (v4 frame)
     for rtf, R, etf in (("D1", ny_daily(m1), "M15"), ("H4", ny_h4(m1), "M5")):
@@ -119,14 +131,14 @@ def run_pair(pair):
                 for j, b, top, _ in breakers(eo, eh, el, ec, max(4, s0 - 30), bend + 1):
                     if j < a:
                         continue
-                    w = fill_window(eh, Eo_t, Ec_t, j, top, bend)
-                    if w is None:
+                    span = fill_window(eh, j, top, bend)
+                    if span is None:
                         continue
-                    e = el[b]
-                    for stop_name, stop in (("classic", top), ("tight", eh[b])):
-                        if stop > e > far:
-                            score(out, mir, e, stop, mid if far < mid < e else None, far, w,
-                                  variant=f"A in CRT {rtf} {stop_name}", tf=rtf)
+                    for kind, e, t_ns, w in entries(eh, el, ec, b, span, Eo_t, Ec_t):
+                        for stop_name, stop in (("classic", top), ("tight", eh[b])):
+                            if stop > e > far:
+                                score(out, mir, e, stop, mid if far < mid < e else None, far, t_ns, w,
+                                      variant=f"A in CRT {rtf} {kind} {stop_name}", tf=rtf, entry=kind)
                     break                                                         # first breaker per CRT
     return rows
 
