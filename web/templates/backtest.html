@@ -2,7 +2,10 @@
 {% block title %}Backtest · CRT Scanner{% endblock %}
 {% block content %}
 <h1>What the backtests showed</h1>
-<p class="muted">1-minute Dukascopy data, Nov 2021 – Dec 2024, spread included (GBP/USD 1.0 pip, gold $0.35). 2025–2026 untouched. Full reports are in the repository under backtest/reports.</p>
+<p class="muted">1-minute Dukascopy data, Nov 2021 – Nov 2026, spread included (GBP/USD 1.0 pip, gold $0.35). Every rule set was written down and committed <b>before</b> it was run. On 20 Nov 2026 you chose to use all years, so the later evidence is year-by-year consistency, walk-forwards and markets never used to build a rule. Full reports: <span class="mono">backtest/reports</span> in the repository.</p>
+
+<div class="note"><b>Bottom line:</b> no fixed rule tested here has an edge that holds on years or markets it wasn't built on. What's left untested is your own judgment, which <a href="{{ url_for('plan_page') }}">My test</a> measures on live setups.</div>
+
 <section class="card">
   <h2>1. The CRT pattern hits targets at the chance rate</h2>
   <p>2,550 CRTs from 2021–2023, entered at the sweep candle close with the stop at the sweep extreme, no costs:</p>
@@ -12,25 +15,55 @@
       <tr><td>Opposite side of the range</td><td class="num">41.8%</td><td class="num">41.7%</td></tr>
       <tr><td>1R / 2R / 3R</td><td class="num">51.8% / ~32% / ~22%</td><td class="num">50% / 33% / 25%</td></tr></tbody>
   </table></div>
-  <p class="small">The same holds within every split tested (session, daily direction, close depth, sweep size, timeframe, pair, side) and when entering during the sweep candle. Chance here means: on a random path the probability of reaching the target before the stop is risk ÷ (risk + reward).</p>
+  <p class="small">Chance means: on a random path, the probability of reaching the target before the stop is risk ÷ (risk + reward). The same holds in every split tested (session, direction, close depth, sweep size, timeframe, pair, side).</p>
 </section>
+
 <section class="card">
-  <h2>2. Rule versions tested</h2>
-  <div class="tablewrap"><table>
-    <thead><tr><th>Version</th><th>2021–2023</th><th>2024 (checked once)</th></tr></thead>
+  <h2>2. Everything tested</h2>
+  <div class="tablewrap"><table class="rtable">
+    <thead><tr><th>Test</th><th>What</th><th>Result</th><th>Verdict</th></tr></thead>
     <tbody>
-      <tr><td>v1: CRT + ICT entries, all combinations (3,644 with 60+ trades)</td><td>best result no better than luck; GBP/USD −0.22 R, gold −0.46 R average</td><td>not run</td></tr>
-      <tr><td>v1.2: your chart feedback (sessions, direction rule, sweep size, spread stops)</td><td>GBP/USD London +0.27 R (144 setups); gold no version positive</td><td>GBP/USD London −0.31 R; 1 of 11 finalists passed (likely luck)</td></tr>
-      <tr><td>London/NY sessions only</td><td>better than v1 on both pairs</td><td>better than v1 on both pairs, still negative</td></tr>
+      <tr><td data-label="Test">v1</td><td data-label="What">CRT + ICT entries, 3,644 combinations</td><td data-label="Result">best no better than luck</td><td data-label="Verdict"><span class="pill bad">No edge</span></td></tr>
+      <tr><td data-label="Test">v1.2</td><td data-label="What">Your chart feedback: sessions, direction rule, sweep size, spread stops</td><td data-label="Result">GBP/USD London +0.27R in 2021–23, then −0.31R in 2024</td><td data-label="Verdict"><span class="pill bad">Didn't hold</span></td></tr>
+      <tr><td data-label="Test">Romeo v2</td><td data-label="What">NY clock, Candle 3 trap, Model #1, bias / key level / time filters</td><td data-label="Result">at or below chance</td><td data-label="Verdict"><span class="pill bad">No edge</span></td></tr>
+      <tr><td data-label="Test">Search</td><td data-label="What">6,349 combinations of 25 Romeo-style conditions</td><td data-label="Result">0 passed; what worked in one period didn't repeat</td><td data-label="Verdict"><span class="pill bad">No edge</span></td></tr>
+      <tr><td data-label="Test">SMT</td><td data-label="What">Divergence with EUR/USD and silver</td><td data-label="Result">no better than without SMT</td><td data-label="Verdict"><span class="pill bad">No edge</span></td></tr>
+      <tr><td data-label="Test">Edge hunt</td><td data-label="What">592 trend, time-of-day, breakout, day-of-week variants, 4 markets</td><td data-label="Result">2 passed 2021–23, 0 passed 2024</td><td data-label="Verdict"><span class="pill bad">No edge</span></td></tr>
+      <tr><td data-label="Test">v4</td><td data-label="What">RTM1, OTE / failure swing, Kiss of Death, fake MSS, rejection block, full MSnR, mixing</td><td data-label="Result">all negative after spread; none positive in more than 2 of 5 years</td><td data-label="Verdict"><span class="pill bad">No edge</span></td></tr>
+      <tr><td data-label="Test">v5 trend</td><td data-label="What">10 weekly / monthly trend rules, 9 FX pairs + gold + silver, from 1971</td><td data-label="Result">strong 1971–2012 (Sharpe 0.65–0.94), gone after 2013 (best 0.23); gold ≈ just holding gold</td><td data-label="Verdict"><span class="pill bad">Faded</span></td></tr>
+      <tr><td data-label="Test">v6</td><td data-label="What">Breaker blocks: edge / 50% / confirm entries × 2 stops, in a CRT and standalone (24 versions)</td><td data-label="Result">0 consistent; at or below chance</td><td data-label="Verdict"><span class="pill bad">No edge</span></td></tr>
+      <tr><td data-label="Test">v8</td><td data-label="What">Breaker + your v1.2 filters, or + Romeo's 3 filters, with and without MSnR</td><td data-label="Result">v1.2: all negative. Romeo: only 9–16 trades in 5 years</td><td data-label="Verdict"><span class="pill bad">No edge</span></td></tr>
+      <tr><td data-label="Test">v9</td><td data-label="What">Romeo's filters loosened + MSnR + breaker, H4</td><td data-label="Result">+0.17 to +0.22R, 75–92 trades, 4 of 5 years: best found</td><td data-label="Verdict"><span class="pill warn">Candidate</span></td></tr>
+      <tr><td data-label="Test">v10</td><td data-label="What">That exact rule, unchanged, on EUR/USD and silver (never used to build it)</td><td data-label="Result">−0.22R, 91 trades, positive only in 2024</td><td data-label="Verdict"><span class="pill bad">Failed: v9 was luck</span></td></tr>
     </tbody>
   </table></div>
 </section>
+
 <section class="card">
-  <h2>3. Why it loses</h2>
+  <h2>3. Walk-forward: choose on the past, trade the next year blind</h2>
+  <p class="small">Each year from 2023 to 2026, the version that looked best on the earlier years was traded on the next year without changes. Only those blind years count.</p>
+  <div class="tablewrap"><table class="rtable">
+    <thead><tr><th>Family</th><th class="num">Blind result</th><th class="num">Blind years positive</th><th>Verdict</th></tr></thead>
+    <tbody>
+      <tr><td data-label="Family">v1.2 CRT variants</td><td class="num" data-label="Blind result">+0.10R (104 trades)</td><td class="num" data-label="Years +">2 of 4</td><td data-label="Verdict"><span class="pill bad">Fail: faded each year</span></td></tr>
+      <tr><td data-label="Family">Romeo v2</td><td class="num" data-label="Blind result">−0.17R</td><td class="num" data-label="Years +">1 of 4</td><td data-label="Verdict"><span class="pill bad">Fail</span></td></tr>
+      <tr><td data-label="Family">Combination search + SMT</td><td class="num" data-label="Blind result">−0.04R</td><td class="num" data-label="Years +">1 of 4</td><td data-label="Verdict"><span class="pill bad">Fail</span></td></tr>
+      <tr><td data-label="Family">v4 advanced models</td><td class="num" data-label="Blind result">−0.26R</td><td class="num" data-label="Years +">0 of 4</td><td data-label="Verdict"><span class="pill bad">Fail</span></td></tr>
+      <tr><td data-label="Family">Breakers</td><td class="num" data-label="Blind result">−0.17R</td><td class="num" data-label="Years +">1 of 4</td><td data-label="Verdict"><span class="pill bad">Fail</span></td></tr>
+      <tr><td data-label="Family">Trend (yearly re-chosen)</td><td class="num" data-label="Blind result">Sharpe −0.17 (2013–26)</td><td class="num" data-label="Years +">—</td><td data-label="Verdict"><span class="pill bad">Fail</span></td></tr>
+      <tr><td data-label="Family">Edge hunt</td><td class="num" data-label="Blind result">EUR/USD buy 21:00 UTC, +1 pip</td><td class="num" data-label="Years +">4 of 4</td><td data-label="Verdict"><span class="pill warn">Passed, but a data artifact</span></td></tr>
+    </tbody>
+  </table></div>
+  <p class="small">The edge-hunt "pass" buys at the New York close, where our bid-only data dips about 1.3 pips while spreads widen. Real rollover spreads and swap cost more than the 1-pip gain. Checking it needs EUR/USD ask-price data. Pure luck also passes this walk-forward about 1 time in 8.</p>
+</section>
+
+<section class="card">
+  <h2>4. Why it loses</h2>
   <ul>
     <li>With no edge, every trade loses about the spread. With tight M5 stops, the spread is half the risk on GBP/USD and 80% on gold.</li>
     <li>The 1 : 3 rule selects the weakest CRTs: closes right at the swept edge and tiny sweeps.</li>
     <li>Limit entries miss the moves that work: 24% are cancelled because price ran to the 50% level without coming back.</li>
+    <li>Trying many versions always turns up a few that look good by luck. That's why every good-looking result had to pass on years or markets it wasn't built on, and none did.</li>
   </ul>
 </section>
 {% endblock %}

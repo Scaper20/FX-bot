@@ -2,7 +2,7 @@
 {% block title %}Strategy · CRT Scanner{% endblock %}
 {% block content %}
 <h1>Strategy (v1.3, assisted mode)</h1>
-<div class="note">The system recommends; you decide. These rules have <b>not</b> shown an edge on data they were not tuned on (see Backtest). The site's job is to find setups that match your rules quickly, show their honest numbers, and measure whether your judgment adds something.</div>
+<div class="note">The system recommends; you decide. These rules, and every variation tested since (Romeo's models, breakers, MSnR, SMT, trend), have <b>not</b> shown an edge on years or markets they weren't built on (see <a href="{{ url_for('backtest') }}">Backtest</a>). The site's job is to find setups that match your rules quickly, show their honest numbers, and measure whether your judgment adds something (<a href="{{ url_for('plan_page') }}">My test</a>).</div>
 <section class="card">
   <h2>What counts as a setup (CRT)</h2>
   <ol>
@@ -31,7 +31,7 @@
 </section>
 <section class="card">
   <h2>Shown as checklist, not as filters</h2>
-  <p>Killzone, FVG and order block present, both CISD and MSS, mid-timeframe MSS, HTF MSS, MSnR level, sweep candle size and depth. None of them changed results versus chance in 2021–2023, so they are information for your judgment, not rules.</p>
-  <p class="muted small">Option history: {{ meta.get('trades', '?') }} simulated trades from {{ meta.get('setups', '?') }} setups, {{ meta.get('period', '') }}. 2025–2026 data is kept untouched for a future one-time test.</p>
+  <p>Killzone, FVG and order block present, both CISD and MSS, mid-timeframe MSS, HTF MSS, MSnR level, sweep candle size and depth. None of them changed results versus chance in any test from 2021 to 2026, so they are information for your judgment, not rules.</p>
+  <p class="muted small">Option history: {{ meta.get('trades', '?') }} simulated trades from {{ meta.get('setups', '?') }} setups, {{ meta.get('period', '') }}. 2025–2026 has since been tested too (your all-years decision); see Backtest.</p>
 </section>
 {% endblock %}
