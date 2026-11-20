@@ -17,3 +17,10 @@ On the entry timeframe, with swings confirmed by 2 candles each side (known only
 
 ## Judged
 Per year 2021 (Nov–Dec) to 2026, average R after spread, trades, target hit rate vs chance (z). A variant is **consistent** only if average R after spread is positive in at least **4 of the 5** years 2022–2026 **and** in total. 8 variants (A: 2 stops; B: 2 timeframes × 2 stops, each also with the London/NY slice).
+
+## Addendum v6b: breaker as entry, three ways (pre-registered 20 Nov 2026, before running them)
+Ore asked to test the breaker as the entry in more ways. Same detection, contexts, stops, targets and scoring as above; only the entry changes.
+- **edge** (as v6): sell limit at the breaker's low.
+- **mid**: sell limit at the breaker's 50% (middle of its high–low).
+- **confirm**: price trades up into the breaker (high reaches its low), then a candle **closes back below the breaker's low**: sell at that close (market). Same 20-candle window, ended by a trade above Top.
+Context A takes the first breaker after C2's close in each CRT (as in the v6 run). 24 variants in total (3 entries × 2 stops × 4 contexts); same "consistent" rule. With this many tries, one or two "passes" are expected by luck, so any pass must also survive the walk-forward (spec v7).
