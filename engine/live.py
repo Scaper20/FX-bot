@@ -261,6 +261,8 @@ def _checks(c: dict, best: dict | None) -> list[dict]:
 
     add("CRT", f"Range candle {c['range_tf']} swept on candle +{c['k']}, closed back inside", True)
     if f:
+        add("CRT", "Range candle is a full candle (not the short Sunday-evening one)", not f.get("range_small"),
+            "short candle: the range may be too small to mean much" if f.get("range_small") else "")
         add("CRT", "Sweep candle no bigger than the range candle", f.get("sweep_ratio", 9) <= 1.0,
             f"sweep candle is {f.get('sweep_ratio')}x the range candle")
         if f.get("sweep_depth_atr") is not None:
