@@ -652,6 +652,8 @@ def create_app(store=None, feed=None, now_fn=None) -> Flask:
         return jsonify(ok=db, engine=ENGINE_VERSION, database=db,
                        feed_key_set=bool(os.environ.get("TWELVEDATA_API_KEY")),
                        password_set=bool(os.environ.get("SITE_PASSWORD")),
+                       email_configured=mailer.configured(), email_live=mailer.live(),
+                       email_sender_domain=(mailer.sender().rsplit("@", 1)[-1].rstrip(">").strip() or None),
                        last_scan=last["started_at"] if last else None)
 
     @app.errorhandler(StoreError)
