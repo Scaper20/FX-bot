@@ -58,9 +58,13 @@ FLAGS = {
 }
 
 
-def scan(m1: pd.DataFrame, pair: str) -> list[dict]:
+def scan(m1: pd.DataFrame, pair: str, partner: pd.DataFrame | None = None) -> list[dict]:
+    """partner: 1-minute candles of the correlated market (SMT). Adds flag 'smt' when given."""
     spread = K.PAIRS[pair]["spread"]
     d1, h4 = ny_daily(m1), ny_h4(m1)
+    pframes = {}
+    if partner is not None:
+        pframes = {"D1": ny_daily(partner), "H4": ny_h4(partner)}
     w1 = ny_weekly(d1)
     entry = {"D1": resample(m1, "M15", "utc0"), "H4": resample(m1, "M5", "utc0")}
     M_t = m1.index.as_unit("ns").asi8
@@ -73,8 +77,13 @@ def scan(m1: pd.DataFrame, pair: str) -> list[dict]:
         R_close = pd.DatetimeIndex(R["t_close"]).as_unit("ns").asi8
         H = w1 if tf == "D1" else d1
         H_close = pd.DatetimeIndex(H["t_close"]).as_unit("ns").asi8
+        P = pframes.get(tf)
+        p_index = ({int(t): k for k, t in enumerate(pd.DatetimeIndex(P["t_open"]).as_unit("ns").asi8)}
+                   if P is not None else {})
         for mir in (False, True):
             o, h, l, c = arrays(R, mir)
+            if P is not None:
+                po, ph, pl, pc = arrays(P, mir)
             eo, eh, el, ec = arrays(E, mir)
             Mo, Mh, Ml, Mc = arrays(m1, mir)
             ho, hh, hl, hc = arrays(H, mir)
@@ -115,6 +124,11 @@ def scan(m1: pd.DataFrame, pair: str) -> list[dict]:
                     "range_mon_tue": tf == "D1" and ny1.weekday() in (0, 1),
                     "htf_fvg": bool(fvg), "htf_ob": bool(ob),
                 }
+                if P is not None:
+                    pi, ps = p_index.get(int(R_open[i])), p_index.get(int(R_open[s]))
+                    # SMT: we swept C1's high, the partner did not take its own C1 high in the same candle
+                    flags["smt"] = pi is not None and ps is not None and ph[ps] <= ph[pi]
+                    flags["smt_known"] = pi is not None and ps is not None
                 entries = [("c2_close", {"e": c[s], "stop": h[s], "t": R_close[s], "fast": False})]
                 # Candle-3 trap + Model #1 (spec v2)
                 ny3 = pd.Timestamp(R_open[c3], tz="UTC").tz_convert(NY)
