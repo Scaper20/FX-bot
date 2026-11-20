@@ -1,0 +1,14 @@
+{% extends "p_base.html" %}
+{% block content %}
+<section class="card" style="max-width:480px;margin:24px auto">
+  <h1>Check your email</h1>
+  <p>Enter the 6-digit code we sent to <b>{{ email }}</b>. It works for 10 minutes.</p>
+  <form method="post">
+    <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+    <label for="code">Code</label>
+    <input id="code" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]{6,7}" maxlength="7" required autofocus class="mono" style="font-size:22px;letter-spacing:6px">
+    <p><button class="btn" type="submit">Sign in</button> <a href="{{ url_for('p_start') }}">Send a new code</a></p>
+  </form>
+  <p class="muted small">No email? Check spam, or wait a minute and ask for a new code.</p>
+</section>
+{% endblock %}

@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Community · CRT Scanner{% endblock %}
+{% block content %}
+<h1>Community</h1>
+<p>Public practice link to share: <a href="{{ share_url }}">{{ share_url }}</a>. Traders' answers are kept apart from yours; see their results on <a href="{{ url_for('performance') }}">Performance</a>.</p>
+<div class="grid three">
+  <div class="stat"><div class="muted small">Traders</div><div class="big">{{ people | length }}</div></div>
+  <div class="stat"><div class="muted small">With a verified email</div><div class="big">{{ people | selectattr('email_verified_at') | list | length }}</div></div>
+  <div class="stat"><div class="muted small">Opted in to updates</div><div class="big">{{ recips | length }}</div></div>
+</div>
+<section class="card">
+  <h2>Send an update</h2>
+  {% if not mail_ok %}<p class="note">Email isn't set up yet: add SENDBYTE_API_KEY and SENDBYTE_FROM in Vercel (see docs/email-setup.md).</p>
+  {% elif not mail_live %}<p class="note">You're using a SendByte <b>test</b> key: emails are simulated and nobody receives them. Email sign-in for traders also stays off until a live key and a verified domain are set.</p>{% endif %}
+  <form method="post">
+    <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+    <label for="subject">Subject</label>
+    <input id="subject" name="subject" maxlength="200" value="{{ subject }}" required>
+    <label for="message">Message (plain text; leave a blank line between paragraphs)</label>
+    <textarea id="message" name="message" rows="8" required>{{ message }}</textarea>
+    <p class="muted small">Each trader gets their own email with "Hi &lt;username&gt;" and an unsubscribe link; nobody sees other addresses. Sending the same subject and message again only reaches people who didn't get it yet.</p>
+    <p class="row"><button class="btn ghost" type="submit" name="action" value="test">Send a test to me</button>
+      <button class="btn" type="submit" name="action" value="all">Send to {{ recips | length }} trader(s)</button></p>
+  </form>
+</section>
+<section class="card">
+  <h2>Sent updates</h2>
+  <div class="tablewrap"><table class="rtable">
+    <thead><tr><th>When</th><th>Subject</th><th class="num">Recipients</th><th class="num">Sent</th><th class="num">Failed</th><th>Note</th></tr></thead>
+    <tbody>{% for e in log %}<tr><td class="small" data-label="When">{{ loc(e.created_at) }}</td><td class="full" data-label="Subject">{{ e.subject }}</td>
+      <td class="num" data-label="Recipients">{{ e.recipients }}</td><td class="num" data-label="Sent">{{ e.sent }}</td><td class="num" data-label="Failed">{{ e.failed }}</td><td class="small" data-label="Note">{{ e.note }}</td></tr>
+    {% else %}<tr><td colspan="6" class="muted">Nothing sent yet.</td></tr>{% endfor %}</tbody>
+  </table></div>
+</section>
+{% endblock %}

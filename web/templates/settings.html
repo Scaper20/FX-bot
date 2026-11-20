@@ -21,6 +21,8 @@
     <input id="cx" name="contract_XAUUSD" inputmode="numeric" value="{{ st.contract.XAUUSD | int }}">
     <label for="tz">Display time zone</label>
     <input id="tz" name="tz" value="{{ st.tz }}">
+    <label for="oe">Your email (for test update emails; never shown publicly)</label>
+    <input id="oe" name="owner_email" type="email" value="{{ st.get('owner_email', '') }}">
     <label for="cl">Daily data credit limit (Twelve Data free plan: 800)</label>
     <input id="cl" name="daily_credit_limit" inputmode="numeric" value="{{ st.daily_credit_limit }}">
     <p><button type="submit">Save settings</button></p>

@@ -13,7 +13,7 @@ import random
 import re
 import secrets
 
-from . import service
+from . import mailer, service
 
 USERNAME_RE = re.compile(r"^[A-Za-z0-9_.-]{3,20}$")
 DAILY_LIMIT = 200
@@ -120,3 +120,155 @@ def all_stats(store) -> dict:
     return {"users": rows, "total_reviews": len(rv),
             "everyone_take": service.group_stats(_pairs(rv, "take")),
             "everyone_skip": service.group_stats(_pairs(rv, "skip"))}
+
+
+# ---------------------------------------------------------------- email sign-in (6-digit codes)
+
+EMAIL_RE = re.compile(r"^[^@\s]{1,64}@[^@\s]{1,190}\.[A-Za-z]{2,24}$")
+CODE_TTL = dt.timedelta(minutes=10)
+MAX_ATTEMPTS = 5
+MAX_CODES_PER_EMAIL_HOUR = 5
+MAX_CODES_PER_DAY = 300
+
+
+def email_signin_enabled() -> bool:
+    """Email sign-in switches on by itself once SendByte can really deliver (live key + sender)."""
+    return mailer.live()
+
+
+def norm_email(email: str) -> str:
+    return (email or "").strip().lower()
+
+
+def valid_email(email: str) -> bool:
+    return bool(EMAIL_RE.match(norm_email(email)))
+
+
+def _code_hash(pepper: str, email: str, code: str) -> str:
+    return hashlib.sha256(f"code|{pepper}|{email}|{code}".encode()).hexdigest()
+
+
+def _now() -> dt.datetime:
+    return dt.datetime.now(dt.timezone.utc)
+
+
+def _ts(x) -> dt.datetime:
+    return dt.datetime.fromisoformat(str(x).replace("Z", "+00:00"))
+
+
+def start_signin(store, name: str, email: str, notify: bool, pepper: str, site_url: str,
+                 send=None) -> tuple[str, dict]:
+    """Returns (status, info). status: sent | bad_email | bad_name | name_taken | too_many | busy | mail_error."""
+    email = norm_email(email)
+    if not valid_email(email):
+        return "bad_email", {}
+    existing = store.community_user_by("email", email)
+    if existing:
+        key, display = existing["username_key"], existing["display_name"]
+    else:
+        if not valid_name(name):
+            return "bad_name", {}
+        key, display = key_of(name), name.strip()
+        owner = store.community_user(key)
+        if owner and owner.get("email") and owner["email"] != email:
+            return "name_taken", {}
+    now = _now()
+    if store.codes_since((now - dt.timedelta(hours=1)).isoformat(), email) >= MAX_CODES_PER_EMAIL_HOUR:
+        return "too_many", {}
+    if store.codes_since((now - dt.timedelta(days=1)).isoformat()) >= MAX_CODES_PER_DAY:
+        return "busy", {}
+    send = send or mailer.send
+    code = f"{secrets.randbelow(10 ** 6):06d}"
+    store.code_add({"email": email, "username_key": key, "display_name": display, "notify": bool(notify),
+                    "code_hash": _code_hash(pepper, email, code), "expires_at": (now + CODE_TTL).isoformat()})
+    text = (f"Your CRT Practice sign-in code is {code}\n\nIt works for 10 minutes. If you didn't ask for it, "
+            f"ignore this email.\n\n{site_url}")
+    html = (f'<div style="font-family:Arial,sans-serif;color:#0F1B2D;max-width:480px">'
+            f'<p>Your CRT Practice sign-in code is</p>'
+            f'<p style="font-size:28px;letter-spacing:6px;font-family:monospace"><b>{code}</b></p>'
+            f'<p>It works for 10 minutes. If you didn\'t ask for it, ignore this email.</p>'
+            f'<p style="color:#5B6577;font-size:12px">{site_url}</p></div>')
+    try:
+        send(email, "Your CRT Practice code", html, text, tags=["signin"])
+    except mailer.MailError as e:
+        return "mail_error", {"message": str(e)}
+    return "sent", {"display": display, "existing": bool(existing)}
+
+
+def verify_code(store, email: str, code: str, pepper: str) -> tuple[str, str | None]:
+    """Returns (status, username_key). status: ok | wrong | expired | locked | none."""
+    email, code = norm_email(email), (code or "").strip().replace(" ", "")
+    row = store.code_latest(email)
+    if not row or row.get("used"):
+        return "none", None
+    if _ts(row["expires_at"]) < _now():
+        return "expired", None
+    if int(row.get("attempts", 0)) >= MAX_ATTEMPTS:
+        return "locked", None
+    if not secrets.compare_digest(_code_hash(pepper, email, code), row["code_hash"]):
+        store.code_update(row["id"], attempts=int(row.get("attempts", 0)) + 1)
+        return "wrong", None
+    store.code_update(row["id"], used=True)
+    key = row["username_key"]
+    now = _now().isoformat()
+    user = store.community_user(key)
+    if user is None:
+        if not store.community_add_user(key, row["display_name"], token_hash(new_token()), email=email,
+                                        email_verified_at=now, notify=bool(row["notify"]),
+                                        unsub_token=secrets.token_urlsafe(24)):
+            return "none", None
+    else:
+        fields = {"email": email, "email_verified_at": now}
+        if not user.get("unsub_token"):
+            fields["unsub_token"] = secrets.token_urlsafe(24)
+        if not user.get("email"):                      # first time this name gets an email
+            fields["notify"] = bool(row["notify"])
+        store.community_update_user(key, **fields)
+    return "ok", key
+
+
+# ---------------------------------------------------------------- update emails
+
+def recipients(store) -> list[dict]:
+    return [u for u in store.community_users_all()
+            if u.get("email") and u.get("email_verified_at") and u.get("notify") and u.get("unsub_token")]
+
+
+def update_email(subject: str, message: str, display: str, unsub_url: str) -> tuple[str, str]:
+    """Plain-text message -> (html, text) with greeting and unsubscribe link."""
+    from html import escape
+    paras = [p.strip() for p in message.replace("\r", "").split("\n\n") if p.strip()]
+    html_body = "".join(f"<p>{escape(p).replace(chr(10), '<br>')}</p>" for p in paras)
+    html = (f'<div style="font-family:Arial,sans-serif;color:#0F1B2D;max-width:560px">'
+            f'<p>Hi {escape(display)},</p>{html_body}'
+            f'<p style="color:#5B6577;font-size:12px;margin-top:24px">You get this because you opted in to CRT Practice '
+            f'updates. <a href="{unsub_url}">Unsubscribe</a>.</p></div>')
+    text = f"Hi {display},\n\n{message.strip()}\n\n--\nUnsubscribe: {unsub_url}"
+    return html, text
+
+
+def send_update(store, subject: str, message: str, unsub_base: str, time_budget_s: float = 45.0,
+                send=None) -> dict:
+    """One email per recipient (nobody sees other addresses). Safe to run again with the same
+    subject and message: SendByte's idempotency key skips people already sent to."""
+    import time
+    send = send or mailer.send
+    uid = hashlib.sha256(f"{subject}|{message}".encode()).hexdigest()[:16]
+    people = recipients(store)
+    t0, sent, failed, errors = time.time(), 0, 0, []
+    for i, u in enumerate(people):
+        if time.time() - t0 > time_budget_s:
+            break
+        html, text = update_email(subject, message, u["display_name"], f"{unsub_base}/{u['unsub_token']}")
+        try:
+            send(u["email"], subject, html, text, tags=["update"], idempotency_key=f"upd-{uid}-{u['username_key']}")
+            sent += 1
+        except mailer.MailError as e:
+            failed += 1
+            errors.append(str(e))
+    done = sent + failed
+    note = f"{len(people) - done} not reached yet: press send again to continue" if done < len(people) else ""
+    if errors:
+        note = (note + " | " if note else "") + errors[0]
+    store.email_log_add({"subject": subject, "recipients": len(people), "sent": sent, "failed": failed, "note": note})
+    return {"recipients": len(people), "sent": sent, "failed": failed, "note": note}

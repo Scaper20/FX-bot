@@ -64,6 +64,8 @@ class MemoryStore:
             self.db.update(json.loads(self.path.read_text()))
         self.db.setdefault("community_users", {})
         self.db.setdefault("community_reviews", [])
+        self.db.setdefault("community_codes", [])
+        self.db.setdefault("community_emails", [])
 
     def _save(self):
         if self.path:
@@ -183,14 +185,65 @@ class MemoryStore:
         u = self.db["community_users"].get(key)
         return copy.deepcopy(u) if u else None
 
-    def community_add_user(self, key: str, display: str, token_hash: str) -> bool:
+    def community_add_user(self, key: str, display: str, token_hash: str, **extra) -> bool:
         with self.lock:
             if key in self.db["community_users"]:
                 return False
-            self.db["community_users"][key] = {"username_key": key, "display_name": display,
-                                               "token_hash": token_hash, "created_at": now_iso()}
+            if extra.get("email") and any(u.get("email") == extra["email"] for u in self.db["community_users"].values()):
+                return False
+            self.db["community_users"][key] = {"username_key": key, "display_name": display, "token_hash": token_hash,
+                                               "created_at": now_iso(), "email": None, "email_verified_at": None,
+                                               "notify": False, "unsub_token": None, **extra}
             self._save()
             return True
+
+    def community_update_user(self, key: str, **fields) -> None:
+        with self.lock:
+            self.db["community_users"][key].update(copy.deepcopy(fields))
+            self._save()
+
+    def community_user_by(self, field: str, value: str) -> dict | None:
+        for u in self.db["community_users"].values():
+            if value and u.get(field) == value:
+                return copy.deepcopy(u)
+        return None
+
+    def community_delete_user(self, key: str) -> None:
+        with self.lock:
+            self.db["community_users"].pop(key, None)
+            self.db["community_reviews"] = [r for r in self.db["community_reviews"] if r["username_key"] != key]
+            self._save()
+
+    def code_add(self, row: dict) -> int:
+        with self.lock:
+            r = {"attempts": 0, "used": False, "created_at": now_iso(), **copy.deepcopy(row)}
+            r["id"] = len(self.db["community_codes"]) + 1
+            self.db["community_codes"].append(r)
+            self._save()
+            return r["id"]
+
+    def code_latest(self, email: str) -> dict | None:
+        rows = [r for r in self.db["community_codes"] if r["email"] == email]
+        return copy.deepcopy(rows[-1]) if rows else None
+
+    def code_update(self, cid: int, **fields) -> None:
+        with self.lock:
+            for r in self.db["community_codes"]:
+                if r["id"] == cid:
+                    r.update(fields)
+            self._save()
+
+    def codes_since(self, iso: str, email: str | None = None) -> int:
+        return sum(1 for r in self.db["community_codes"]
+                   if r["created_at"] >= iso and (email is None or r["email"] == email))
+
+    def email_log_add(self, row: dict) -> None:
+        with self.lock:
+            self.db["community_emails"].append({"created_at": now_iso(), **row})
+            self._save()
+
+    def email_log(self, limit: int = 20) -> list[dict]:
+        return copy.deepcopy(list(reversed(self.db["community_emails"]))[:limit])
 
     def community_add_review(self, row: dict) -> bool:
         with self.lock:
@@ -342,11 +395,53 @@ class SupabaseStore:
         rows = self._req("GET", "community_users", {"username_key": f"eq.{key}", "select": "*"})
         return rows[0] if rows else None
 
-    def community_add_user(self, key: str, display: str, token_hash: str) -> bool:
-        out = self._req("POST", "community_users", {"on_conflict": "username_key"},
-                        body={"username_key": key, "display_name": display, "token_hash": token_hash},
-                        prefer="resolution=ignore-duplicates,return=representation")
+    def community_add_user(self, key: str, display: str, token_hash: str, **extra) -> bool:
+        try:
+            out = self._req("POST", "community_users", {"on_conflict": "username_key"},
+                            body={"username_key": key, "display_name": display, "token_hash": token_hash, **extra},
+                            prefer="resolution=ignore-duplicates,return=representation")
+        except StoreError as e:
+            if " 409 " in str(e) or "duplicate" in str(e):      # e.g. email already used
+                return False
+            raise
         return bool(out)
+
+    def community_update_user(self, key: str, **fields) -> None:
+        self._req("PATCH", "community_users", {"username_key": f"eq.{key}"}, body=fields, prefer="return=minimal")
+
+    def community_user_by(self, field: str, value: str) -> dict | None:
+        if not value:
+            return None
+        rows = self._req("GET", "community_users", {field: f"eq.{value}", "select": "*"})
+        return rows[0] if rows else None
+
+    def community_delete_user(self, key: str) -> None:
+        self._req("DELETE", "community_users", {"username_key": f"eq.{key}"}, prefer="return=minimal")
+
+    def code_add(self, row: dict) -> int:
+        out = self._req("POST", "community_codes", body=row, prefer="return=representation")
+        return int(out[0]["id"])
+
+    def code_latest(self, email: str) -> dict | None:
+        rows = self._req("GET", "community_codes", {"email": f"eq.{email}", "select": "*",
+                                                    "order": "created_at.desc", "limit": "1"})
+        return rows[0] if rows else None
+
+    def code_update(self, cid: int, **fields) -> None:
+        self._req("PATCH", "community_codes", {"id": f"eq.{cid}"}, body=fields, prefer="return=minimal")
+
+    def codes_since(self, iso: str, email: str | None = None) -> int:
+        p = {"select": "id", "created_at": f"gte.{iso}", "limit": "1000"}
+        if email:
+            p["email"] = f"eq.{email}"
+        return len(self._req("GET", "community_codes", p) or [])
+
+    def email_log_add(self, row: dict) -> None:
+        self._req("POST", "community_emails", body=row, prefer="return=minimal")
+
+    def email_log(self, limit: int = 20) -> list[dict]:
+        return self._req("GET", "community_emails", {"select": "*", "order": "created_at.desc",
+                                                     "limit": str(limit)}) or []
 
     def community_add_review(self, row: dict) -> bool:
         out = self._req("POST", "community_reviews", {"on_conflict": "username_key,item_id"}, body=row,
@@ -360,7 +455,8 @@ class SupabaseStore:
         return self._req("GET", "community_reviews", p) or []
 
     def community_users_all(self) -> list[dict]:
-        return self._req("GET", "community_users", {"select": "username_key,display_name,created_at",
+        return self._req("GET", "community_users", {"select": "username_key,display_name,created_at,email,"
+                                                              "email_verified_at,notify,unsub_token",
                                                     "limit": "5000"}) or []
 
 

@@ -21,7 +21,7 @@ from engine.feeds.twelvedata import CALLS_PER_SCAN, FeedError, TwelveDataFeed, f
 from engine.live import ENGINE_VERSION, TRIGGER_LABEL, load_stats
 from engine.sessions import LONDON, NEW_YORK
 
-from . import charts, community, service
+from . import charts, community, mailer, service
 from .store import StoreError, from_env, merged_settings
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -340,6 +340,7 @@ def create_app(store=None, feed=None, now_fn=None) -> Flask:
                              "XAUUSD": _num(f.get("contract_XAUUSD"), 100)},
                 "tz": f.get("tz") or st["tz"],
                 "daily_credit_limit": int(_num(f.get("daily_credit_limit"), 780)),
+                "owner_email": community.norm_email(f.get("owner_email")) if community.valid_email(f.get("owner_email") or "") else "",
             }
             if not (0 < new["spreads"]["GBPUSD"] < 0.01 and 0 < new["spreads"]["XAUUSD"] < 20
                     and 0 < new["risk_pct"] <= 10 and new["balance"] > 0):
@@ -379,6 +380,8 @@ def create_app(store=None, feed=None, now_fn=None) -> Flask:
     @app.route("/p", methods=["GET", "POST"])
     def p_start():
         g.public = True
+        if community.email_signin_enabled():
+            return p_start_email()
         if request.method == "POST":
             check_csrf()
             name = (request.form.get("username") or "").strip()
@@ -394,6 +397,90 @@ def create_app(store=None, feed=None, now_fn=None) -> Flask:
                 session["pt"] = tok
             return redirect(url_for("p_practice"))
         return render_template("p_start.html", name=session.get("pu_name", ""))
+
+    def p_start_email():
+        name, email = session.get("pu_name", ""), ""
+        if request.method == "POST":
+            check_csrf()
+            name = (request.form.get("username") or "").strip()
+            email = community.norm_email(request.form.get("email"))
+            status, info = community.start_signin(store(), name, email, bool(request.form.get("notify")),
+                                                  app.config["SECRET_KEY"], url_for("p_start", _external=True))
+            msgs = {"bad_email": "That email address doesn't look right.",
+                    "bad_name": "Use 3 to 20 letters, numbers, dots, dashes or underscores for the username.",
+                    "name_taken": "That username belongs to another email. Pick a different one.",
+                    "too_many": "Too many codes for this email in the last hour. Try again later.",
+                    "busy": "Sign-ups are paused for today (daily email limit). Please try tomorrow.",
+                    "mail_error": "We couldn't send the email right now. Please try again in a minute."}
+            if status == "sent":
+                session["p_email"] = email
+                if info.get("existing"):
+                    flash(f"Welcome back, {info['display']}. We sent a code to {email}.", "info")
+                else:
+                    flash(f"We sent a 6-digit code to {email}.", "info")
+                return redirect(url_for("p_verify"))
+            flash(msgs.get(status, "Something went wrong."), "error")
+        return render_template("p_start_email.html", name=name, email=email)
+
+    @app.route("/p/verify", methods=["GET", "POST"])
+    def p_verify():
+        g.public = True
+        email = session.get("p_email")
+        if not email:
+            return redirect(url_for("p_start"))
+        if request.method == "POST":
+            check_csrf()
+            status, key = community.verify_code(store(), email, request.form.get("code"), app.config["SECRET_KEY"])
+            if status == "ok":
+                user = store().community_user(key)
+                session.permanent = True
+                session["pu"], session["pu_name"] = key, user["display_name"]
+                session.pop("p_email", None)
+                return redirect(url_for("p_practice"))
+            flash({"wrong": "That code isn't right. Check the email and try again.",
+                   "expired": "That code has expired. Ask for a new one.",
+                   "locked": "Too many wrong tries. Ask for a new code.",
+                   "none": "No valid code for this email. Ask for a new one."}[status], "error")
+        return render_template("p_verify.html", email=email)
+
+    @app.route("/p/me/notify", methods=["POST"])
+    def p_notify():
+        g.public = True
+        if not session.get("pu"):
+            return redirect(url_for("p_start"))
+        check_csrf()
+        store().community_update_user(session["pu"], notify=bool(request.form.get("notify")))
+        flash("Email preference saved.", "ok")
+        return redirect(url_for("p_me"))
+
+    @app.route("/p/me/delete", methods=["POST"])
+    def p_delete():
+        g.public = True
+        if not session.get("pu"):
+            return redirect(url_for("p_start"))
+        check_csrf()
+        if not request.form.get("confirm"):
+            flash("Tick the box to confirm.", "error")
+            return redirect(url_for("p_me"))
+        store().community_delete_user(session["pu"])
+        for k in ("pu", "pu_name", "pt"):
+            session.pop(k, None)
+        flash("Your account, email address and answers have been deleted.", "ok")
+        return redirect(url_for("p_start"))
+
+    @app.route("/p/unsubscribe/<token>", methods=["GET", "POST"])
+    def p_unsubscribe(token):
+        g.public = True
+        user = store().community_user_by("unsub_token", token) if len(token) >= 16 else None
+        if not user:
+            return render_template("p_message.html", title="Link not valid",
+                                   message="This unsubscribe link isn't valid any more."), 404
+        if request.method == "POST":
+            check_csrf()
+            store().community_update_user(user["username_key"], notify=False)
+            return render_template("p_message.html", title="Unsubscribed",
+                                   message="You won't get update emails any more. Sign-in codes still work.")
+        return render_template("p_unsubscribe.html", token=token)
 
     @app.route("/p/practice")
     @public_user_required
@@ -439,7 +526,43 @@ def create_app(store=None, feed=None, now_fn=None) -> Flask:
     @public_user_required
     def p_me():
         return render_template("p_me.html", st=community.user_stats(store(), session["pu"]),
-                               prog=community.progress(store(), session["pu"]))
+                               prog=community.progress(store(), session["pu"]),
+                               user=store().community_user(session["pu"]))
+
+    # ------------------------------------------------------------ community admin (Ore)
+    @app.route("/community", methods=["GET", "POST"])
+    @login_required
+    def community_admin():
+        people = store().community_users_all()
+        if request.method == "POST":
+            check_csrf()
+            subject = (request.form.get("subject") or "").strip()[:200]
+            message = (request.form.get("message") or "").strip()[:20000]
+            if not subject or not message:
+                flash("Write a subject and a message.", "error")
+            elif request.form.get("action") == "test":
+                to = settings().get("owner_email")
+                if not to:
+                    flash("Add your own email in Settings first.", "error")
+                else:
+                    html, text = community.update_email(subject, message, "Ore", url_for("p_start", _external=True))
+                    try:
+                        mailer.send(to, "[Test] " + subject, html, text, tags=["update-test"])
+                        flash(f"Test sent to {to}.", "ok")
+                    except mailer.MailError as e:
+                        flash(str(e), "error")
+            else:
+                res = community.send_update(store(), subject, message,
+                                            url_for("p_unsubscribe", token="x", _external=True)[:-2])
+                flash(f"Sent to {res['sent']} of {res['recipients']} trader(s); {res['failed']} failed. {res['note']}",
+                      "ok" if not res["failed"] else "error")
+            return render_template("community.html", people=people, recips=community.recipients(store()),
+                                   log=store().email_log(), subject=subject, message=message,
+                                   mail_ok=mailer.configured(), mail_live=mailer.live(),
+                                   share_url=url_for("p_start", _external=True))
+        return render_template("community.html", people=people, recips=community.recipients(store()),
+                               log=store().email_log(), subject="", message="", mail_ok=mailer.configured(),
+                               mail_live=mailer.live(), share_url=url_for("p_start", _external=True))
 
     @app.route("/p/logout")
     def p_logout():

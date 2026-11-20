@@ -1,0 +1,18 @@
+{% extends "p_base.html" %}
+{% block content %}
+<section class="card hero" style="max-width:640px;margin:24px auto">
+  <h1>Can you read a CRT?</h1>
+  <p>You'll see real GBP/USD and gold setups from 2021–2024: a higher-timeframe candle range, a sweep of one side that closed back inside, and a lower-timeframe trigger. Each chart stops at the moment of decision.</p>
+  <p>Say <b>Take</b>, <b>Skip</b> or <b>Unsure</b> and why. The outcome is revealed straight after. Your answers are compared with chance, so we can learn which judgments actually add an edge.</p>
+  <form method="post">
+    <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+    <label for="username">Username (shown on results; new traders only)</label>
+    <input id="username" name="username" value="{{ name or '' }}" maxlength="20" autocomplete="nickname">
+    <label for="email">Email (never shown to anyone; used to send your sign-in code)</label>
+    <input id="email" name="email" type="email" value="{{ email or '' }}" autocomplete="email" required>
+    <label class="row" style="color:inherit;margin-top:10px"><input type="checkbox" name="notify" value="1" style="width:auto"> Email me occasional updates (new practice sets, results). Unsubscribe any time.</label>
+    <p><button class="btn big" type="submit">Send me a code</button></p>
+    <p class="muted small">Already practised here? Just enter your email. We store your username, email and answers only, to run this research. You can delete everything from "My results".</p>
+  </form>
+</section>
+{% endblock %}
