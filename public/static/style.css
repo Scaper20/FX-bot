@@ -154,4 +154,5 @@ ul.list li:last-child { border-bottom: 0; }
 .ichart-key { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 6px 0 0; }
 .ichart-key span { display: inline-flex; align-items: center; gap: 5px; }
 .ichart-key i { width: 14px; height: 3px; border-radius: 2px; display: inline-block; }
+svg.chart.bars, .card > svg.chart { max-width: 720px; }
 [hidden] { display: none !important; }

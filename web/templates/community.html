@@ -2,7 +2,7 @@
 {% block title %}Community · CRT Scanner{% endblock %}
 {% block content %}
 <h1>Community</h1>
-<p>Public practice link to share: <a href="{{ share_url }}">{{ share_url }}</a>. Traders' answers are kept apart from yours; see their results on <a href="{{ url_for('performance') }}">Performance</a>.</p>
+<p>Public practice link to share: <a href="{{ share_url }}">{{ share_url }}</a>. Traders' answers are kept apart from yours. See whether they're helping on <a href="{{ url_for('insights_page') }}">Insights</a>.</p>
 <div class="grid three">
   <div class="stat"><div class="muted small">Traders</div><div class="big">{{ people | length }}</div></div>
   <div class="stat"><div class="muted small">With a verified email</div><div class="big">{{ people | selectattr('email_verified_at') | list | length }}</div></div>

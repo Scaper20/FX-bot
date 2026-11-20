@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block title %}Insights · CRT Scanner{% endblock %}
+
+{% macro hbar(rows, label_key, value_key, n_key, scale) %}
+{# diverging horizontal bars around zero: green above 0, coral below; label + value always written #}
+{% set w = 640 %}{% set mid = 330 %}{% set half = 150 %}{% set rowh = 30 %}
+<svg viewBox="0 0 {{ w }} {{ rows|length * rowh + 10 }}" class="chart bars" role="img" aria-label="Bar chart; the same numbers are in the table">
+  <line x1="{{ mid }}" x2="{{ mid }}" y1="0" y2="{{ rows|length * rowh + 4 }}" stroke="#C9CFD8" stroke-width="1"/>
+  {% for r in rows %}{% set v = r[value_key] %}{% set y = loop.index0 * rowh + 6 %}
+    <text x="0" y="{{ y + 15 }}" font-size="12" fill="#0F1B2D" style="font-family:var(--sans)">{{ r[label_key][:24] }}</text>
+    {% if v is not none %}
+      {% set len = [ (v|abs) / scale * half, half ]|min %}
+      <rect x="{{ mid if v >= 0 else mid - len }}" y="{{ y + 3 }}" width="{{ [len, 2]|max }}" height="16" rx="4"
+            fill="{{ '#0B7A5A' if v >= 0 else '#C8473B' }}"><title>{{ r[label_key] }}: {{ '%+.2f' % v }}R over {{ r[n_key] }}</title></rect>
+      <text x="{{ mid + len + 6 if v >= 0 else mid + 6 }}" y="{{ y + 15 }}" font-size="12" fill="#5B6577" class="mono">{{ '%+.2f' % v }}R · n {{ r[n_key] }}</text>
+    {% else %}
+      <text x="{{ mid + 6 }}" y="{{ y + 15 }}" font-size="12" fill="#5B6577">no finished trades yet</text>
+    {% endif %}
+  {% endfor %}
+</svg>
+{% endmacro %}
+
+{% block content %}
+<h1>Insights: is the community helping?</h1>
+<p class="muted">Measured on the practice setups, whose outcomes are known. A trader <b>helps</b> if the setups they Take beat chance <i>and</i> beat the ones they Skip. Under {{ d.min_takes }} finished Takes, any result is mostly luck.</p>
+
+<div class="grid three">
+  <div class="stat"><div class="muted small">Traders · active last 7 days</div><div class="big">{{ d.n_traders }} · {{ d.active7 }}</div></div>
+  <div class="stat"><div class="muted small">Answers so far</div><div class="big">{{ d.total_answers }}</div></div>
+  <div class="stat"><div class="muted small">Traders with {{ d.min_takes }}+ finished Takes · helping</div><div class="big">{{ d.eligible }} · {{ d.helping }}</div></div>
+</div>
+
+<section class="card">
+  <h2>The bar to beat</h2>
+  <p class="small">Taking <b>every</b> practice setup with its top option: <b class="mono">{{ rfmt(d.baseline.avg_R) }}</b> per trade over {{ d.baseline.n }} trades. Pure chance after spread: <b class="mono">{{ rfmt(d.baseline.chance_avg_R) }}</b>. A useful trader or crowd must do clearly better than both.</p>
+  {% if d.everyone %}
+  <p class="small">Everyone's Takes together: <b class="mono">{{ rfmt(d.everyone.take_avg_R) }}</b> over {{ d.everyone.take_trades }} finished trades (chance {{ rfmt(d.everyone.chance_avg_R) }}, z {{ '%.1f' % d.everyone.z if d.everyone.z is not none else '—' }}).
+    <span class="pill {{ d.everyone.verdict == 'good' and 'ok' or d.everyone.verdict == 'bad' and 'bad' or 'warn' }}">{{ d.everyone.verdict_text }}</span></p>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>Each trader</h2>
+  {% if d.traders or d.you %}
+  {% set rows = d.traders + ([d.you] if d.you else []) %}
+  <h3 class="small muted">Edge of their Takes over chance (R per trade)</h3>
+  {{ hbar(rows, 'name', 'edge', 'take_trades', 1.0) }}
+  <div class="tablewrap"><table class="rtable">
+    <thead><tr><th>Trader</th><th>Verdict</th><th class="num">Answers</th><th class="num">Take rate</th><th class="num">Finished Takes</th><th class="num">Win rate</th><th class="num">Avg R</th><th class="num">Edge vs chance</th><th class="num">z</th><th class="num">Takes − Skips</th><th class="num">z</th></tr></thead>
+    <tbody>{% for t in rows %}
+      <tr><td class="full" data-label="Trader"><b>{{ t.name }}</b></td>
+        <td data-label="Verdict"><span class="pill {{ t.verdict == 'good' and 'ok' or t.verdict == 'bad' and 'bad' or t.verdict == 'early' and 'info' or 'warn' }}">{{ '✓ ' if t.verdict == 'good' }}{{ '✗ ' if t.verdict == 'bad' }}{{ t.verdict_text }}</span></td>
+        <td class="num" data-label="Answers">{{ t.answers }}</td><td class="num" data-label="Take rate">{{ pct(t.take_rate) }}</td>
+        <td class="num" data-label="Finished Takes">{{ t.take_trades }}</td><td class="num" data-label="Win rate">{{ pct(t.win_rate) }}</td>
+        <td class="num" data-label="Avg R">{{ rfmt(t.take_avg_R) }}</td><td class="num" data-label="Edge vs chance">{{ rfmt(t.edge) }}</td>
+        <td class="num" data-label="z">{{ '%.1f' % t.z if t.z is not none else '—' }}</td>
+        <td class="num" data-label="Takes − Skips">{{ rfmt(t.selection) }}</td><td class="num" data-label="z">{{ '%.1f' % t.sel_z if t.sel_z is not none else '—' }}</td></tr>
+    {% endfor %}</tbody>
+  </table></div>
+  <p class="muted small">Ranked by edge shrunk towards zero for small samples. "Takes − Skips" compares the top option's result on setups they took with those they skipped: positive means they pick better than they pass. z of 2 or more is unlikely to be luck. "You (Ore)" uses your private practice answers, kept separate from the community.</p>
+  {% else %}<p class="muted">No answers yet. Share the practice link from the Community page.</p>{% endif %}
+</section>
+
+<section class="card">
+  <h2>Does the crowd know?</h2>
+  <p class="small">Setups answered by 3 or more traders, grouped by how many of them took it, with the top option's actual result.</p>
+  {% if d.crowd.items_3plus %}
+  {{ hbar(d.crowd.rows, 'label', 'avg_R', 'n', 1.0) }}
+  <p class="small">Trading only setups most people took: <b class="mono">{{ rfmt(d.crowd.majority_avg_R) }}</b> over {{ d.crowd.majority_n }} trades, against {{ rfmt(d.baseline.avg_R) }} for taking everything (z {{ '%.1f' % d.crowd.majority_z if d.crowd.majority_z is not none else '—' }}).
+    If "mostly taken" isn't clearly above "mostly skipped", the crowd isn't telling winners from losers yet.</p>
+  {% else %}<p class="muted">Not enough overlap yet: {{ d.crowd.items_3plus }} setups have 3+ answers. Each trader sees setups in their own order, so overlap builds as people answer more.</p>{% endif %}
+</section>
+
+<div class="grid two">
+<section class="card">
+  <h2>Which reasons pay?</h2>
+  <p class="small muted">Top option's average result on setups given each reason. A good Take reason should show positive R; a good Skip reason, negative (it avoided losers).</p>
+  <div class="tablewrap"><table class="rtable">
+    <thead><tr><th>Call</th><th>Reason</th><th class="num">Setups</th><th class="num">Avg R</th></tr></thead>
+    <tbody>{% for r in d.reasons %}<tr><td data-label="Call">{{ r.decision }}</td><td class="full" data-label="Reason">{{ r.reason }}</td><td class="num" data-label="Setups">{{ r.n }}</td><td class="num" data-label="Avg R">{{ rfmt(r.avg_R) }}</td></tr>
+    {% else %}<tr><td colspan="4" class="muted">No reasons recorded yet.</td></tr>{% endfor %}</tbody>
+  </table></div>
+</section>
+<section class="card">
+  <h2>Does confidence mean anything?</h2>
+  <p class="small muted">Finished Takes by the confidence traders gave (1 low – 5 high). Confidence is useful only if higher levels earn more.</p>
+  <div class="tablewrap"><table class="rtable">
+    <thead><tr><th>Confidence</th><th class="num">Finished Takes</th><th class="num">Avg R</th></tr></thead>
+    <tbody>{% for c in d.confidence %}<tr><td data-label="Confidence">{{ c.level }}</td><td class="num" data-label="Finished Takes">{{ c.n }}</td><td class="num" data-label="Avg R">{{ rfmt(c.avg_R) }}</td></tr>{% endfor %}</tbody>
+  </table></div>
+  {% if d.agreement.n %}<p class="small">Traders agreed with your own call on {{ pct(d.agreement.rate) }} of {{ d.agreement.n }} shared setups.</p>{% endif %}
+</section>
+</div>
+
+<section class="card">
+  <h2>Activity, last 30 days</h2>
+  {% set mx = [d.activity|map(attribute='n')|max, 1]|max %}
+  <svg viewBox="0 0 640 140" class="chart" role="img" aria-label="Answers per day for the last 30 days: {{ d.total_answers }} in total">
+    <line x1="0" x2="640" y1="118" y2="118" stroke="#C9CFD8"/>
+    {% for a in d.activity %}{% set h = (a.n / mx * 100) %}
+      <rect x="{{ loop.index0 * 21 + 4 }}" y="{{ 118 - h }}" width="17" height="{{ [h, 0]|max }}" rx="3" fill="#0F1B2D"><title>{{ a.day }}: {{ a.n }} answers</title></rect>
+    {% endfor %}
+    <text x="4" y="134" font-size="11" fill="#5B6577">{{ d.activity[0].day[5:] }}</text>
+    <text x="636" y="134" font-size="11" fill="#5B6577" text-anchor="end">{{ d.activity[-1].day[5:] }}</text>
+    <text x="4" y="12" font-size="11" fill="#5B6577">most in a day: {{ mx }}</text>
+  </svg>
+</section>
+{% endblock %}

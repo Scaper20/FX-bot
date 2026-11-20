@@ -21,7 +21,7 @@ from engine.feeds.twelvedata import CALLS_PER_SCAN, FeedError, TwelveDataFeed, f
 from engine.live import ENGINE_VERSION, TRIGGER_LABEL, load_stats
 from engine.sessions import LONDON, NEW_YORK
 
-from . import chartdata, charts, community, mailer, service
+from . import chartdata, charts, community, insights, mailer, service
 from .store import StoreError, from_env, merged_settings
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -537,6 +537,11 @@ def create_app(store=None, feed=None, now_fn=None) -> Flask:
         return render_template("p_me.html", st=community.user_stats(store(), session["pu"]),
                                prog=community.progress(store(), session["pu"]),
                                user=store().community_user(session["pu"]))
+
+    @app.route("/insights")
+    @login_required
+    def insights_page():
+        return render_template("insights.html", d=insights.build(store()))
 
     # ------------------------------------------------------------ community admin (Ore)
     @app.route("/community", methods=["GET", "POST"])
