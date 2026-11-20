@@ -91,9 +91,8 @@ An earlier Python prototype, "Preflight bot v0.2" (Telegram bot for a different 
 
 ## 11. Open items
 - [ ] Ore's real Exness Standard spreads (costs are ~0.25 R per trade, decisive).
-- [ ] Ore: create the Supabase project `fx-bot` (Claude's create was declined) or approve Claude creating it; then Claude applies `db/migrations/001_init.sql`.
-- [ ] Ore: deploy on Vercel himself (his choice) following `docs/website-setup.md`, with env vars SUPABASE_URL, SUPABASE_SECRET_KEY, TWELVEDATA_API_KEY, SITE_PASSWORD.
-- [ ] After deploy: switch on scheduled scans (`db/migrations/002_schedule.sql` with the site URL); feed check confirms XAU/USD on the Twelve Data free plan.
+- [x] 20 Nov 2026: live at https://fxbot-ochre.vercel.app (Vercel, deployed by Ore). Database: Supabase project ltzcwwtnfmiembysuzie (Ore's new org), schema 001 + schedule 002 applied by Claude. Forced test scan through pg_cron route: OK, both pairs fetched, 6 credits. XAU/USD works on the Twelve Data free plan.
+- [ ] Optional: revoke anon/authenticated EXECUTE on Supabase-created `public.rls_auto_enable()` (security advisor warning; not our code; awaiting Ore).
 - [ ] Ore: real Exness Standard spreads into Settings; reviews (live + practice) to measure his judgment.
 - [ ] Confirm XAU/USD works on the Twelve Data free plan, and the live-versus-historical price gap. Key is not yet set in the cloud session.
 - [ ] Before going public: legal opinion (Nigeria SEC draft rules on online forex and CFD trading are not yet in force but could cover this), data and hosting licence checks, wording review.
