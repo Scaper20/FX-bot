@@ -22,6 +22,14 @@ FINAL_STATES = {"stop", "target", "breakeven", "time"}
 TF_STEP = {"H1": pd.Timedelta("1h"), "M15": pd.Timedelta("15min"), "M5": pd.Timedelta("5min")}
 PRACTICE_FILE = Path(__file__).resolve().parent / "data" / "practice.json.gz"
 REASONS = [
+    ("romeo_m1", "Model #1: thick candle swept, then closed back through its body"),
+    ("romeo_c3", "Candle 3 trap: price ran above/below C3's open first"),
+    ("romeo_keylevel", "Swept a key level / old high-low (PDH/PDL, PWH/PWL, FVG)"),
+    ("romeo_htf", "HTF candle bias agrees (close/wick rule)"),
+    ("romeo_time", "Right time (Tue/Wed sweep, 1/5/9 AM NY, inside 00:00–16:00 NY)"),
+    ("romeo_premium", "Selling at premium / buying at discount of the range"),
+    ("romeo_smt", "SMT with the correlated market (EUR/USD, DXY, silver)"),
+    ("romeo_kod", "Kiss of death / fake MSS before the real move"),
     ("with_trend", "With the market direction"),
     ("against_no_backing", "Against the market, no OB/FVG on the left"),
     ("htf_level", "Strong HTF level / OB / FVG on the left"),
