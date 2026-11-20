@@ -29,7 +29,8 @@ create index if not exists setups_open_idx on setups (source, final, pair);
 create index if not exists setups_seen_idx on setups (first_seen desc);
 
 -- The snapshot is the forward record: refuse any change to it.
-create or replace function setups_card_is_immutable() returns trigger language plpgsql as $$
+create or replace function setups_card_is_immutable() returns trigger language plpgsql
+set search_path = public as $$
 begin
   if new.card is distinct from old.card or new.first_seen is distinct from old.first_seen then
     raise exception 'setup snapshot (card, first_seen) cannot be changed';
@@ -76,7 +77,8 @@ create table if not exists usage (
   credits int not null default 0
 );
 
-create or replace function add_credits(n int) returns void language sql as $$
+create or replace function add_credits(n int) returns void language sql
+set search_path = public as $$
   insert into usage (day, credits) values ((now() at time zone 'utc')::date, n)
   on conflict (day) do update set credits = usage.credits + excluded.credits;
 $$;
@@ -96,4 +98,6 @@ alter table reviews enable row level security;
 alter table scans enable row level security;
 alter table usage enable row level security;
 alter table app_secrets enable row level security;
-revoke all on function add_credits(int) from anon, authenticated;
+revoke all on function add_credits(int) from public, anon, authenticated;
+grant execute on function add_credits(int) to service_role;
+revoke all on function setups_card_is_immutable() from public, anon, authenticated;
