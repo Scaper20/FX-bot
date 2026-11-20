@@ -40,4 +40,24 @@
 </div>
 {{ table(live, "Live (forward log)") }}
 {{ table(practice, "Practice (past setups reviewed blind)") }}
+<section class="card">
+  <h2>Community practice</h2>
+  <p class="small">Other traders review the same past setups at <a href="{{ share_url }}">{{ share_url }}</a> (share this link; no password, just a username). Their answers are stored separately and never mixed with yours.</p>
+  {% if community.users %}
+  <div class="tablewrap"><table class="rtable">
+    <thead><tr><th>Trader</th><th class="num">Answers</th><th class="num">Takes finished</th><th class="num">Takes avg R</th><th class="num">Takes chance avg R</th><th class="num">z</th><th class="num">Skips avg R</th></tr></thead>
+    <tbody>
+    {% for u in community.users %}
+      <tr><td class="full" data-label="Trader"><b>{{ u.name }}</b></td><td class="num" data-label="Answers">{{ u.reviews }}</td><td class="num" data-label="Takes finished">{{ u.take.trades }}</td>
+        <td class="num" data-label="Takes avg R">{{ rfmt(u.take.avg_R) }}</td><td class="num" data-label="Takes chance avg R">{{ rfmt(u.take.chance_avg_R) }}</td>
+        <td class="num" data-label="z">{{ '%.1f' % u.take.z_R if u.take.z_R is not none else '—' }}</td><td class="num" data-label="Skips avg R">{{ rfmt(u.skip.avg_R) }}</td></tr>
+    {% endfor %}
+    <tr><td class="full" data-label="Trader"><b>Everyone together</b></td><td class="num" data-label="Answers">{{ community.total_reviews }}</td><td class="num" data-label="Takes finished">{{ community.everyone_take.trades }}</td>
+      <td class="num" data-label="Takes avg R">{{ rfmt(community.everyone_take.avg_R) }}</td><td class="num" data-label="Takes chance avg R">{{ rfmt(community.everyone_take.chance_avg_R) }}</td>
+      <td class="num" data-label="z">{{ '%.1f' % community.everyone_take.z_R if community.everyone_take.z_R is not none else '—' }}</td><td class="num" data-label="Skips avg R">{{ rfmt(community.everyone_skip.avg_R) }}</td></tr>
+    </tbody>
+  </table></div>
+  <p class="muted small">Usernames have no password, so anyone could type someone else's name. Treat a trader's numbers as theirs only if you trust who is behind the name.</p>
+  {% else %}<p class="muted">No community answers yet.</p>{% endif %}
+</section>
 {% endblock %}

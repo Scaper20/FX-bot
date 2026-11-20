@@ -179,3 +179,84 @@ def test_all_pages_render(env):
         r = c.get(path)
         assert r.status_code == 200, path
         assert "guaranteed" not in r.get_data(as_text=True).lower()
+
+
+# ------------------------------------------------------------ public practice (community)
+
+def p_start(client, name, its_me=False):
+    tok = csrf(client, "/p")
+    data = {"csrf": tok, "username": name}
+    if its_me:
+        data["its_me"] = "1"
+    return client.post("/p", data=data)
+
+
+def test_public_practice_is_separate_from_ore(env):
+    app, store, clock = env
+    if not service.practice_items():
+        pytest.skip("practice set not built")
+    c = app.test_client()
+    assert c.get("/p/practice").status_code == 302                       # needs a username
+    assert "letters" in p_start(c, "x!").get_data(as_text=True)          # invalid name
+    r = p_start(c, "Trader_One")
+    assert r.status_code == 302 and r.headers["Location"].endswith("/p/practice")
+    page = c.get("/p/practice").get_data(as_text=True)
+    assert "Find a setup" not in page and "Settings" not in page          # no private navigation
+    pid = re.search(r'action="/p/practice/(P-[^"]+)"', page).group(1)
+    other = next(p for p in service.practice_items() if p["id"] != pid)["id"]
+    assert c.get(f"/p/practice/{other}/result").status_code == 302      # no peeking before answering
+    tok = csrf(c, "/p/practice")
+    r = c.post(f"/p/practice/{pid}", data={"csrf": tok, "decision": "take", "reasons": ["gut"]})
+    assert r.headers["Location"].endswith(f"/p/practice/{pid}/result")
+    assert "What happened" in c.get(f"/p/practice/{pid}/result").get_data(as_text=True)
+    # stored only in community tables
+    assert len(store.community_reviews("trader_one")) == 1
+    assert store.list_reviews() == [] and store.list_setups() == []
+    # answering the same setup twice does not add a second answer
+    c.post(f"/p/practice/{pid}", data={"csrf": tok, "decision": "skip"})
+    assert len(store.community_reviews("trader_one")) == 1
+    # a public username never opens the private site
+    assert c.get("/").status_code == 302 and c.get("/journal").status_code == 302
+    assert "My results" in c.get("/p/me").get_data(as_text=True)
+
+
+def test_username_from_another_browser_needs_confirmation(env):
+    app, store, clock = env
+    a, b = app.test_client(), app.test_client()
+    p_start(a, "Ade")
+    r = p_start(b, "ADE")                                                 # same name, other browser
+    assert r.status_code == 200 and "already in use" in r.get_data(as_text=True)
+    r = p_start(b, "ade", its_me=True)
+    assert r.status_code == 302
+    r = p_start(a, "ade")                                                 # original browser: no question
+    assert r.status_code == 302
+
+
+def test_each_trader_gets_own_order_and_daily_limit(env, monkeypatch):
+    app, store, clock = env
+    from web import community
+    if not service.practice_items():
+        pytest.skip("practice set not built")
+    o1, o2 = community.order_for("a"), community.order_for("b")
+    assert [p["id"] for p in o1] != [p["id"] for p in o2]
+    assert sorted(p["id"] for p in o1) == sorted(p["id"] for p in o2)
+    monkeypatch.setattr(community, "DAILY_LIMIT", 2)
+    store.community_add_user("lim", "lim", "h")
+    rv = {"decision": "skip", "option_id": None, "reasons": [], "notes": "", "confidence": None}
+    res = [community.save(store, "lim", it, rv) for it in o1[:3]]
+    assert res == ["saved", "saved", "limit"]
+
+
+def test_ore_sees_community_stats(env):
+    app, store, clock = env
+    if not service.practice_items():
+        pytest.skip("practice set not built")
+    from web import community
+    store.community_add_user("kemi", "Kemi", "h")
+    for it in community.order_for("kemi")[:5]:
+        community.save(store, "kemi", it, {"decision": "take", "option_id": None, "reasons": [], "notes": "",
+                                           "confidence": None})
+    c = app.test_client()
+    login(c)
+    page = c.get("/performance").get_data(as_text=True)
+    assert "Community practice" in page and "Kemi" in page and "/p" in page

@@ -1,0 +1,18 @@
+{% extends "p_base.html" %}
+{% block title %}My results · CRT Practice{% endblock %}
+{% block content %}
+<h1>My results</h1>
+<p class="muted">{{ prog.done }} of {{ prog.total }} setups answered.</p>
+<section class="card">
+  <div class="tablewrap"><table class="rtable">
+    <thead><tr><th>Your answers</th><th class="num">Setups</th><th class="num">Finished trades</th><th class="num">Win rate</th><th class="num">Chance win rate</th><th class="num">Avg R</th><th class="num">Chance avg R</th><th class="num">z</th></tr></thead>
+    <tbody>{% for key, label in [('take', 'Take'), ('skip', 'Skip'), ('unsure', 'Unsure')] %}{% set s = st[key] %}
+      <tr><td class="full" data-label="Your answers"><b>{{ label }}</b></td><td class="num" data-label="Setups">{{ s.setups }}</td><td class="num" data-label="Finished trades">{{ s.trades }}</td>
+        <td class="num" data-label="Win rate">{{ pct(s.win_rate) }}</td><td class="num" data-label="Chance win rate">{{ pct(s.chance_win_rate) }}</td>
+        <td class="num" data-label="Avg R">{{ rfmt(s.avg_R) }}</td><td class="num" data-label="Chance avg R">{{ rfmt(s.chance_avg_R) }}</td>
+        <td class="num" data-label="z">{{ '%.1f' % s.z_R if s.z_R is not none else '—' }}</td></tr>{% endfor %}</tbody>
+  </table></div>
+  <p class="small">For "Skip" the result shown is what the top option would have done. Good judgment means your Takes beat chance <i>and</i> beat your Skips. "Chance avg R" is what a random market gives after spread. Under about 50 finished trades, differences are mostly luck.</p>
+</section>
+<p><a class="btn" href="{{ url_for('p_practice') }}">Continue practising</a></p>
+{% endblock %}

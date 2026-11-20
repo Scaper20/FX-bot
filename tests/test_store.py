@@ -99,3 +99,14 @@ def test_production_without_database_settings_fails_loudly(monkeypatch):
     c = app.test_client()
     assert c.get("/api/health").get_json()["database"] is False
     assert c.get("/login").status_code == 200          # login page still loads
+
+
+def test_community_requests():
+    fs = FakeServer([[{"username_key": "a"}], [], [{"id": 1}], []])
+    st = SupabaseStore("https://x.supabase.co", "k", opener=fs)
+    assert st.community_add_user("a", "A", "h") is True
+    assert st.community_add_user("a", "A", "h") is False
+    assert st.community_add_review({"username_key": "a", "item_id": "P-1", "decision": "skip"}) is True
+    assert st.community_add_review({"username_key": "a", "item_id": "P-1", "decision": "skip"}) is False
+    assert "on_conflict=username_key" in fs.calls[0]["url"]
+    assert "on_conflict=username_key%2Citem_id" in fs.calls[2]["url"] or "on_conflict=username_key,item_id" in fs.calls[2]["url"]

@@ -1,0 +1,11 @@
+{% extends "p_base.html" %}
+{% from "_macros.html" import dir_pill with context %}
+{% block title %}Result · CRT Practice{% endblock %}
+{% block content %}
+<div class="row spread"><h1>What happened</h1><span class="muted small">{{ prog.done }} of {{ prog.total }} answered</span></div>
+<section class="card">
+  <h2>{{ card.pair }} {{ dir_pill(card.direction) }} <span class="pill">{{ card.range_tf }} CRT</span> <span class="muted small">{{ loc(card.decision_time, '%a %d %b %Y %H:%M') }} UTC</span></h2>
+  {% include "_practice_reveal.html" %}
+  <p><a class="btn" href="{{ url_for('p_practice') }}">Next setup</a> <a class="btn ghost" href="{{ url_for('p_me') }}">My results</a></p>
+</section>
+{% endblock %}

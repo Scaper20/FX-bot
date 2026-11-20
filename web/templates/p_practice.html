@@ -1,0 +1,16 @@
+{% extends "p_base.html" %}
+{% from "_macros.html" import review_form with context %}
+{% block title %}Practice · CRT Practice{% endblock %}
+{% block content %}
+<div class="row spread">
+  <h1>Your call</h1>
+  <span class="muted small">{{ prog.done }} of {{ prog.total }} answered</span>
+</div>
+<div class="bar" aria-hidden="true"><i style="width:{{ (100 * prog.done / prog.total) if prog.total else 0 }}%"></i></div>
+<p class="muted small">A real past setup, shown only up to the trigger (times in UTC). Decide as you would live; the outcome is revealed after you save.</p>
+{% set rules_owner = "the scanner's" %}{% include "_practice_card.html" %}
+<section class="card">
+  <h2>Take, skip or unsure?</h2>
+  {{ review_form(url_for('p_review', pid=item.id), card.options[:5], card.best, "Save and reveal the outcome") }}
+</section>
+{% endblock %}

@@ -5,17 +5,7 @@
 <div class="row spread"><h1>What happened</h1><span class="muted small">{{ prog.done }} of {{ prog.total }} reviewed</span></div>
 <section class="card">
   <h2>{{ card.pair }} {{ dir_pill(card.direction) }} <span class="pill">{{ card.range_tf }} CRT</span> <span class="muted small">{{ loc(card.decision_time, '%a %d %b %Y %H:%M') }}</span></h2>
-  {% if reviews %}{% set r = reviews[-1] %}<p>You said <b>{{ r.decision }}</b>{% if r.option_id and r.decision == 'take' %} with option {{ r.option_id }}{% endif %}.</p>{% endif %}
-  <div class="charts">
-    <figure style="margin:0">{{ charts.range | safe }}</figure>
-    <figure style="margin:0"><figcaption class="small muted">Faded candles: what came after the trigger.</figcaption>{{ charts.entry | safe }}</figure>
-  </div>
-  <div class="tablewrap"><table class="rtable">
-    <thead><tr><th>#</th><th>Option</th><th class="num">R:R</th><th class="num">Chance</th><th>Outcome</th></tr></thead>
-    <tbody>{% for o in card.options[:8] %}<tr class="{{ 'best' if op and o.id == op.id }}"><td class="num" data-label="Rank">{{ loop.index }}</td><td class="small full" data-label="Option">{{ o.entry_tf }} {{ o.trigger }} · {{ labels.entry[o.entry_type] }}; {{ labels.stop[o.stop_type] | lower }}; {{ labels.mgmt[o.mgmt] | lower }}</td>
-      <td class="num" data-label="Reward : risk">1:{{ '%.1f' % o.rr }}</td><td class="num" data-label="Chance win rate">{{ pct(o.chance) }}</td><td data-label="Outcome">{{ status_pill(status.get(o.id)) }}</td></tr>{% endfor %}</tbody>
-  </table></div>
-  <p class="muted small">Outcomes were simulated on 1-minute data with the spread from the backtest, using the same rules as the live tracker.</p>
+  {% include "_practice_reveal.html" %}
   <p><a class="btn" href="{{ url_for('practice') }}">Next practice setup</a> <a class="btn ghost" href="{{ url_for('performance') }}">See my practice performance</a></p>
 </section>
 {% endblock %}

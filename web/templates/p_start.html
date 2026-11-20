@@ -1,0 +1,19 @@
+{% extends "p_base.html" %}
+{% block content %}
+<section class="card hero" style="max-width:640px;margin:24px auto">
+  <h1>Can you read a CRT?</h1>
+  <p>You'll see real GBP/USD and gold setups from 2021–2024: a higher-timeframe candle range, a sweep of one side that closed back inside, and a lower-timeframe trigger. Each chart stops at the moment of decision.</p>
+  <p>Say <b>Take</b>, <b>Skip</b> or <b>Unsure</b> and why. The outcome is revealed straight after. Your answers are compared with chance, so we can learn which judgments actually add an edge.</p>
+  <form method="post">
+    <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+    <label for="username">Choose a username (no password needed)</label>
+    <input id="username" name="username" value="{{ name or '' }}" maxlength="20" autocomplete="nickname" required autofocus>
+    <p class="muted small">3–20 letters, numbers, dots, dashes or underscores. Use the same name every time so your results stay together.</p>
+    {% if ask_confirm %}
+    <div class="note">The name <b>{{ name }}</b> is already in use from another browser. If that was you, tick the box to continue; otherwise pick a different name.
+      <label class="row" style="color:inherit;margin-top:8px"><input type="checkbox" name="its_me" value="1" style="width:auto"> Yes, this is me</label></div>
+    {% endif %}
+    <p><button class="btn big" type="submit">Start practising</button></p>
+  </form>
+</section>
+{% endblock %}

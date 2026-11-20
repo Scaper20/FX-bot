@@ -1,0 +1,4 @@
+{% extends "p_base.html" %}
+{% block content %}
+<div class="card empty"><h1>All done</h1><p>You've answered all {{ prog.total }} setups. Thank you! <a href="{{ url_for('p_me') }}">See how your calls compare with chance.</a></p></div>
+{% endblock %}

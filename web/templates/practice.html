@@ -8,27 +8,7 @@
 </div>
 <div class="bar" aria-hidden="true"><i style="width:{{ (100 * prog.done / prog.total) if prog.total else 0 }}%"></i></div>
 <p class="muted">A real past setup (2021–2024), shown only up to the moment of the trigger, exactly as the scanner would have shown it. Decide as you would live; the outcome is revealed after you save. History numbers are hidden so the call is yours.</p>
-<section class="card">
-  <div class="setup-head">
-    <h2>{{ card.pair }} {{ dir_pill(card.direction) }} <span class="pill">{{ card.range_tf }} CRT</span>
-      {% if card.recommended %}<span class="pill rec">matches your rules</span>{% else %}<span class="pill warn">a rule is not met</span>{% endif %}</h2>
-    <span class="muted small">{{ loc(card.decision_time, '%a %d %b %Y %H:%M') }}</span>
-  </div>
-  <div class="charts">
-    <figure style="margin:0">{{ charts.range | safe }}</figure>
-    <figure style="margin:0">{{ charts.entry | safe }}</figure>
-  </div>
-  <details><summary>Chart in words</summary><p>{{ text }}</p></details>
-  <div class="tablewrap"><table class="rtable">
-    <thead><tr><th>#</th><th>Option</th><th class="num">Entry</th><th class="num">Stop</th><th class="num">Target</th><th class="num">R:R</th><th class="num">Chance win rate</th></tr></thead>
-    <tbody>{% for o in card.options[:5] %}<tr class="{{ 'best' if loop.first }}"><td class="num" data-label="Rank">{{ loop.index }}</td>
-      <td class="full" data-label="Option">{{ o.entry_tf }} {{ o.trigger }} · <span class="small">{{ labels.entry[o.entry_type] }}; {{ labels.stop[o.stop_type] | lower }}; {{ labels.mgmt[o.mgmt] | lower }}</span></td>
-      <td class="num" data-label="Entry">{{ price(card.pair, o.entry) }}</td><td class="num" data-label="Stop">{{ price(card.pair, o.stop) }}</td><td class="num" data-label="Target">{{ price(card.pair, o.target) }}</td>
-      <td class="num" data-label="Reward : risk">1:{{ '%.1f' % o.rr }}</td><td class="num" data-label="Chance win rate">{{ pct(o.chance) }}</td></tr>{% endfor %}</tbody>
-  </table></div>
-  <h3>Checklist</h3>
-  <ul class="checks">{% for c in card.checks %}<li class="{{ 'yes' if c.ok else 'no' }}"><span class="mark" aria-hidden="true">{{ '✓' if c.ok else '✗' }}</span><span><span class="sr">{{ 'yes' if c.ok else 'no' }}: </span>{{ c.label }}{% if c.note %} <span class="muted small">({{ c.note }})</span>{% endif %}</span></li>{% endfor %}</ul>
-</section>
+{% set rules_owner = "your" %}{% include "_practice_card.html" %}
 <section class="card">
   <h2>Your call</h2>
   {{ review_form(url_for('practice_review', pid=item.id), card.options[:5], card.best, "Save and reveal the outcome") }}

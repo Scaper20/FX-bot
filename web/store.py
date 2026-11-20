@@ -62,6 +62,8 @@ class MemoryStore:
         self.db = {"settings": {}, "setups": {}, "reviews": [], "scans": [], "usage": {}, "secrets": {}}
         if self.path and self.path.exists():
             self.db.update(json.loads(self.path.read_text()))
+        self.db.setdefault("community_users", {})
+        self.db.setdefault("community_reviews", [])
 
     def _save(self):
         if self.path:
@@ -175,6 +177,39 @@ class MemoryStore:
     # secrets (cron token)
     def get_secret(self, name: str) -> str | None:
         return self.db["secrets"].get(name)
+
+    # community (public practice)
+    def community_user(self, key: str) -> dict | None:
+        u = self.db["community_users"].get(key)
+        return copy.deepcopy(u) if u else None
+
+    def community_add_user(self, key: str, display: str, token_hash: str) -> bool:
+        with self.lock:
+            if key in self.db["community_users"]:
+                return False
+            self.db["community_users"][key] = {"username_key": key, "display_name": display,
+                                               "token_hash": token_hash, "created_at": now_iso()}
+            self._save()
+            return True
+
+    def community_add_review(self, row: dict) -> bool:
+        with self.lock:
+            if any(r["username_key"] == row["username_key"] and r["item_id"] == row["item_id"]
+                   for r in self.db["community_reviews"]):
+                return False
+            r = {"option_id": None, "reasons": [], "notes": "", "confidence": None}
+            r.update(copy.deepcopy(row))
+            r.update(id=len(self.db["community_reviews"]) + 1, created_at=now_iso())
+            self.db["community_reviews"].append(r)
+            self._save()
+            return True
+
+    def community_reviews(self, username_key: str | None = None) -> list[dict]:
+        rows = [r for r in self.db["community_reviews"] if username_key is None or r["username_key"] == username_key]
+        return copy.deepcopy(rows)
+
+    def community_users_all(self) -> list[dict]:
+        return copy.deepcopy(list(self.db["community_users"].values()))
 
 
 # ---------------------------------------------------------------- supabase
@@ -301,6 +336,32 @@ class SupabaseStore:
     def get_secret(self, name: str) -> str | None:
         rows = self._req("GET", "app_secrets", {"name": f"eq.{name}", "select": "token"})
         return rows[0]["token"] if rows else None
+
+    # community (public practice)
+    def community_user(self, key: str) -> dict | None:
+        rows = self._req("GET", "community_users", {"username_key": f"eq.{key}", "select": "*"})
+        return rows[0] if rows else None
+
+    def community_add_user(self, key: str, display: str, token_hash: str) -> bool:
+        out = self._req("POST", "community_users", {"on_conflict": "username_key"},
+                        body={"username_key": key, "display_name": display, "token_hash": token_hash},
+                        prefer="resolution=ignore-duplicates,return=representation")
+        return bool(out)
+
+    def community_add_review(self, row: dict) -> bool:
+        out = self._req("POST", "community_reviews", {"on_conflict": "username_key,item_id"}, body=row,
+                        prefer="resolution=ignore-duplicates,return=representation")
+        return bool(out)
+
+    def community_reviews(self, username_key: str | None = None) -> list[dict]:
+        p = {"select": "*", "order": "created_at.asc", "limit": "20000"}
+        if username_key:
+            p["username_key"] = f"eq.{username_key}"
+        return self._req("GET", "community_reviews", p) or []
+
+    def community_users_all(self) -> list[dict]:
+        return self._req("GET", "community_users", {"select": "username_key,display_name,created_at",
+                                                    "limit": "5000"}) or []
 
 
 class UnconfiguredStore:

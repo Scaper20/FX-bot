@@ -21,7 +21,7 @@ from engine.feeds.twelvedata import CALLS_PER_SCAN, FeedError, TwelveDataFeed, f
 from engine.live import ENGINE_VERSION, TRIGGER_LABEL, load_stats
 from engine.sessions import LONDON, NEW_YORK
 
-from . import charts, service
+from . import charts, community, service
 from .store import StoreError, from_env, merged_settings
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -88,7 +88,7 @@ def create_app(store=None, feed=None, now_fn=None) -> Flask:
     @app.context_processor
     def inject():
         st = settings()
-        tz = st.get("tz", "Africa/Lagos")
+        tz = "UTC" if g.get("public") else st.get("tz", "Africa/Lagos")
 
         def missing(x):
             return x is None or isinstance(x, Undefined)
@@ -265,7 +265,9 @@ def create_app(store=None, feed=None, now_fn=None) -> Flask:
     @login_required
     def performance():
         return render_template("performance.html", live=service.performance(store(), "live"),
-                               practice=service.performance(store(), "practice"))
+                               practice=service.performance(store(), "practice"),
+                               community=community.all_stats(store()),
+                               share_url=url_for("p_start", _external=True))
 
     @app.route("/practice")
     @login_required
@@ -363,6 +365,87 @@ def create_app(store=None, feed=None, now_fn=None) -> Flask:
         store().add_credits(len(K.PAIRS))
         session["feed_result"] = out
         return redirect(url_for("settings_page"))
+
+    # ------------------------------------------------------------ public practice (community)
+    def public_user_required(fn):
+        @functools.wraps(fn)
+        def wrapper(*a, **kw):
+            g.public = True
+            if not session.get("pu"):
+                return redirect(url_for("p_start"))
+            return fn(*a, **kw)
+        return wrapper
+
+    @app.route("/p", methods=["GET", "POST"])
+    def p_start():
+        g.public = True
+        if request.method == "POST":
+            check_csrf()
+            name = (request.form.get("username") or "").strip()
+            if not community.valid_name(name):
+                flash("Use 3 to 20 letters, numbers, dots, dashes or underscores.", "error")
+                return render_template("p_start.html", name=name)
+            result, tok = community.claim(store(), name, session.get("pt"), bool(request.form.get("its_me")))
+            if result == "taken":
+                return render_template("p_start.html", name=name, ask_confirm=True)
+            session.permanent = True
+            session["pu"], session["pu_name"] = community.key_of(name), name
+            if tok:
+                session["pt"] = tok
+            return redirect(url_for("p_practice"))
+        return render_template("p_start.html", name=session.get("pu_name", ""))
+
+    @app.route("/p/practice")
+    @public_user_required
+    def p_practice():
+        key = session["pu"]
+        item = community.next_item(store(), key)
+        prog = community.progress(store(), key)
+        if not item:
+            return render_template("p_done.html", prog=prog)
+        card = item["card"]
+        op = service.option_by_id(card, card.get("best"))
+        return render_template("p_practice.html", item=item, card=card, op=op, prog=prog,
+                               charts=charts.card_charts(card, op), text=charts.text_equivalent(card, op, "UTC"))
+
+    @app.route("/p/practice/<pid>", methods=["POST"])
+    @public_user_required
+    def p_review(pid):
+        check_csrf()
+        item = service.practice_item(pid)
+        if not item:
+            abort(404)
+        res = community.save(store(), session["pu"], item, _review_from_form(request.form))
+        if res == "limit":
+            flash(f"That's {community.DAILY_LIMIT} reviews today: thank you! Come back tomorrow.", "info")
+            return redirect(url_for("p_me"))
+        return redirect(url_for("p_result", pid=pid))
+
+    @app.route("/p/practice/<pid>/result")
+    @public_user_required
+    def p_result(pid):
+        item = service.practice_item(pid)
+        mine = [r for r in store().community_reviews(session["pu"]) if r["item_id"] == pid]
+        if not item or not mine:                    # no peeking at outcomes before answering
+            return redirect(url_for("p_practice"))
+        card = item["card"]
+        chosen = mine[-1].get("option_id") if mine[-1]["decision"] == "take" else None
+        op = service.option_by_id(card, chosen) or service.option_by_id(card, card.get("best"))
+        ch = charts.card_charts(card, op, after=item.get("after"), decision=op["decision_time"] if op else None)
+        return render_template("p_result.html", item=item, card=card, op=op, charts=ch, reviews=mine,
+                               status=item["outcome"], prog=community.progress(store(), session["pu"]))
+
+    @app.route("/p/me")
+    @public_user_required
+    def p_me():
+        return render_template("p_me.html", st=community.user_stats(store(), session["pu"]),
+                               prog=community.progress(store(), session["pu"]))
+
+    @app.route("/p/logout")
+    def p_logout():
+        for k in ("pu", "pu_name"):
+            session.pop(k, None)
+        return redirect(url_for("p_start"))
 
     # ------------------------------------------------------------ machine endpoints
     @app.route("/api/cron/scan", methods=["GET", "POST"])

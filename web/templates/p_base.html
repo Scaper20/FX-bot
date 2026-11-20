@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>{% block title %}CRT Practice{% endblock %}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=Instrument+Serif&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230F1B2D'/%3E%3Crect x='9' y='10' width='4' height='12' fill='%230B7A5A'/%3E%3Crect x='19' y='7' width='4' height='14' fill='%23C8473B'/%3E%3C/svg%3E">
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="{{ url_for('p_start') }}">CRT Practice</a>
+    {% if session.get('pu') %}
+    <div class="clock"><span class="sess">Signed in as {{ session.get('pu_name') }}</span>
+      <a class="sess" href="{{ url_for('p_me') }}" style="text-decoration:none">My results</a>
+      <a class="sess" href="{{ url_for('p_logout') }}" style="text-decoration:none">Switch name</a></div>
+    {% endif %}
+  </div>
+</header>
+<main class="wrap">
+  {% with msgs = get_flashed_messages(with_categories=true) %}
+    {% for cat, m in msgs %}<div class="flash {{ cat }}" role="status">{{ m }}</div>{% endfor %}
+  {% endwith %}
+  {% block content %}{% endblock %}
+</main>
+<footer>
+  A research exercise on past market data (2021–2024). Not advice, not a signal service. Only your chosen name and your answers are stored.
+</footer>
+</body>
+</html>
