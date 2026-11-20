@@ -39,9 +39,13 @@ def _ts(ns):
     return pd.Timestamp(int(ns), tz="UTC")
 
 
-def run_pair(pair):
-    spread = K.PAIRS[pair]["spread"]
-    m1, _ = clean(load_m1_csv(ROOT / K.PAIRS[pair]["file"]))
+FRESH = {"EURUSD": {"spread": 0.00010, "file": "data/eurusd-m1-bid-2021-11-01-2026-11-19.zip"},
+         "XAGUSD": {"spread": 0.03, "file": "data/xagusd-m1-bid-2021-11-01-2026-11-19.zip"}}   # spec v10
+
+
+def run_pair(pair, markets=K.PAIRS):
+    spread = markets[pair]["spread"]
+    m1, _ = clean(load_m1_csv(ROOT / markets[pair]["file"]))
     m1 = m1[m1.index >= START - pd.Timedelta("150D")]
     d1, h4 = ny_daily(m1), ny_h4(m1)
     w1 = ny_weekly(d1)
