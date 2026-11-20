@@ -83,3 +83,19 @@ def test_memory_store_keeps_snapshot_immutable(tmp_path):
     m.update_setup("a", card={"v": 2}, final=True)
     again = MemoryStore(tmp_path / "s.json").get_setup("a")
     assert again["card"] == {"v": 1} and again["final"] is True
+
+
+def test_production_without_database_settings_fails_loudly(monkeypatch):
+    from web.store import UnconfiguredStore, from_env
+    for k in ("SUPABASE_URL", "SUPABASE_SECRET_KEY", "LOCAL_DEV", "LOCAL_STORE_FILE"):
+        monkeypatch.delenv(k, raising=False)
+    st = from_env()
+    assert isinstance(st, UnconfiguredStore)
+    with pytest.raises(StoreError, match="not configured"):
+        st.list_setups()
+    from web.app import create_app
+    monkeypatch.setenv("SITE_PASSWORD", "x")
+    app = create_app()
+    c = app.test_client()
+    assert c.get("/api/health").get_json()["database"] is False
+    assert c.get("/login").status_code == 200          # login page still loads

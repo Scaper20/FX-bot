@@ -303,8 +303,22 @@ class SupabaseStore:
         return rows[0]["token"] if rows else None
 
 
+class UnconfiguredStore:
+    """Used in production when the database settings are missing: every call fails loudly,
+    so reviews are never written to a throw-away in-memory store."""
+    configured = False
+
+    def __getattr__(self, name):
+        def fail(*a, **kw):
+            raise StoreError("Database not configured: set SUPABASE_URL and SUPABASE_SECRET_KEY "
+                             "in the Vercel project settings (docs/website-setup.md).")
+        return fail
+
+
 def from_env():
     url, key = os.environ.get("SUPABASE_URL", "").strip(), os.environ.get("SUPABASE_SECRET_KEY", "").strip()
     if url and key:
         return SupabaseStore(url, key)
-    return MemoryStore(os.environ.get("LOCAL_STORE_FILE") or None)
+    if os.environ.get("LOCAL_DEV") == "1" or os.environ.get("LOCAL_STORE_FILE"):
+        return MemoryStore(os.environ.get("LOCAL_STORE_FILE") or None)
+    return UnconfiguredStore()

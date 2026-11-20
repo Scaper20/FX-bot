@@ -395,10 +395,16 @@ def create_app(store=None, feed=None, now_fn=None) -> Flask:
             db = True
         except StoreError:
             last, db = None, False
+        except Exception:
+            last, db = None, False
         return jsonify(ok=db, engine=ENGINE_VERSION, database=db,
                        feed_key_set=bool(os.environ.get("TWELVEDATA_API_KEY")),
                        password_set=bool(os.environ.get("SITE_PASSWORD")),
                        last_scan=last["started_at"] if last else None)
+
+    @app.errorhandler(StoreError)
+    def store_error(e):
+        return render_template("error.html", message=str(e)), 503
 
     @app.errorhandler(404)
     def not_found(e):
