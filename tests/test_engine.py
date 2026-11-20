@@ -142,7 +142,8 @@ def test_no_look_ahead_future_prices_do_not_change_setups(gbp):
         mkt2 = Market(mut, data_end=pd.Timestamp("2022-02-15", tz="UTC"))
         orders2, _ = find_orders(mkt2, "H4", "M15", i, 1, mir, 0.0001)
         key = lambda o: (o["trigger"], o["entry_type"], o["stop_type"], round(o["entry"], 6), round(o["stop"], 6),
-                         o["decision_time"], o["has_fvg"], o["has_ob"], o["htf_fvg"], o["msnr"], o["mtf_mss"])
+                         o["decision_time"], o["has_fvg"], o["has_ob"], o["htf_fvg"], o["msnr"], o["mtf_mss"],
+                         o["trend_struct"], o["trend_ema"], o["session"], round(o["sweep_ratio"], 6))
         first = sorted(key(o) for o in orders if o["decision_time"] == t_dec)
         again = sorted(key(o) for o in orders2 if o["decision_time"] == t_dec)
         assert first == again
@@ -178,3 +179,24 @@ def test_time_stop_counts_trading_candles_not_weekend_hours(gbp):
     exit_t = pd.Timestamp(out["results"]["M1_T2"]["exit_time"], tz="UTC")
     assert out["results"]["M1_T2"]["reason"] == "time"
     assert exit_t >= pd.Timestamp("2022-01-17 10:00", tz="UTC")   # ~5 H4 candles after Sunday open
+
+
+def test_structure_direction_flips_on_swing_breaks():
+    # swing high 12 at idx 2 (confirmed idx 4); close 13 at idx 6 -> up.
+    # swing low 9 at idx 8 (confirmed idx 10); close 8.5 at idx 12 -> down.
+    h = np.array([10, 11, 12, 11, 10.5, 11, 13.5, 12, 11, 12, 12.5, 11, 10.0])
+    l = np.array([9.5, 10, 11, 10, 10.2, 10, 12.5, 11, 9.0, 10, 11, 10, 8.0])
+    c = np.array([10, 10.5, 11.5, 10.5, 10.4, 10.8, 13.0, 11.5, 9.5, 11, 12, 10.5, 8.5])
+    d = S.structure_direction(h, l, c, n=2)
+    assert d[5] == 0 and d[6] == 1 and d[11] == 1 and d[12] == -1
+
+
+def test_session_flags_follow_daylight_saving():
+    from engine.sessions import friday_late, session_flags
+    ts = lambda s: pd.Timestamp(s, tz="UTC")
+    assert session_flags(ts("2024-01-10 07:30")) == "london"      # winter: London 07:00 = 07:00 UTC
+    assert session_flags(ts("2024-01-10 14:00")) == "overlap"     # NY 09:00
+    assert session_flags(ts("2024-01-10 19:00")) == "newyork"     # NY 14:00, London closed
+    assert session_flags(ts("2024-07-10 06:30")) == "london"      # summer: London 07:30 BST
+    assert session_flags(ts("2024-07-10 02:00")) == ""
+    assert friday_late(ts("2024-01-12 20:30")) and not friday_late(ts("2024-01-11 20:30"))

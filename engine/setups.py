@@ -12,7 +12,7 @@ import pandas as pd
 from . import config as K
 from . import structure as S
 from .candles import resample
-from .sessions import in_killzone
+from .sessions import friday_late, in_killzone, session_flags
 from .simulate import simulate
 
 
@@ -57,6 +57,21 @@ class Market:
         tr = np.maximum(d1["high"] - d1["low"],
                         np.maximum((d1["high"] - prev_c).abs(), (d1["low"] - prev_c).abs()))
         self.d1_atr = tr.rolling(14).mean().to_numpy()     # ATR of candle i, known at its close
+        self.atr = {tf: _atr(frames[tf]) for tf in self.TFS}
+        # Daily "market direction", real orientation: +1 up, -1 down, 0 unknown. Known at each D1 close.
+        self.d1_struct = S.structure_direction(d1["high"].to_numpy(), d1["low"].to_numpy(),
+                                               d1["close"].to_numpy(), K.SWING_N)
+        ema = d1["close"].ewm(span=20, adjust=False).mean()
+        up = (d1["close"] > ema) & (ema > ema.shift(3))
+        dn = (d1["close"] < ema) & (ema < ema.shift(3))
+        self.d1_ema = np.where(up, 1, np.where(dn, -1, 0))
+
+
+def _atr(df: pd.DataFrame, n: int = 14) -> np.ndarray:
+    prev_c = df["close"].shift()
+    tr = np.maximum(df["high"] - df["low"],
+                    np.maximum((df["high"] - prev_c).abs(), (df["low"] - prev_c).abs()))
+    return tr.rolling(n).mean().to_numpy()
 
 
 def _idx_closed_by(tf: TF, t_ns: int) -> int:
@@ -113,6 +128,19 @@ def find_orders(mkt: Market, range_tf: str, entry_tf: str, i: int, k: int, mirro
         range_small=bool(R.m1_count[i] < 0.5 * (1440 if range_tf == "D1" else 240)),
         range_open=pd.Timestamp(R.t_open[i], tz="UTC"),
     )
+    # v1.2: market direction, sweep size (all known at the sweep candle's open/close)
+    D = mkt.view[("D1", mirrored)]
+    di = _idx_closed_by(D, t_s_open)
+    trade_sign = 1 if mirrored else -1            # real direction: +1 long, -1 short
+    def rel(d):
+        return "none" if d == 0 else ("with" if d == trade_sign else "against")
+    atr_r = mkt.atr[range_tf][s - 1]
+    feats.update(
+        trend_struct=rel(int(mkt.d1_struct[di])) if di >= 0 else "none",
+        trend_ema=rel(int(mkt.d1_ema[di])) if di >= 0 else "none",
+        sweep_depth_atr=float((R.h[s] - rh) / atr_r) if np.isfinite(atr_r) and atr_r > 0 else np.nan,
+        sweep_ratio=float((R.h[s] - R.l[s]) / (rh - rl)),
+    )
     targets_base = {"T1": (rh + rl) / 2, "T2": rl, "T3": _t3(R, i, s, rl)}
 
     orders = []
@@ -126,8 +154,10 @@ def find_orders(mkt: Market, range_tf: str, entry_tf: str, i: int, k: int, mirro
         exp = 1 if t_dec <= end_by_exp[1] else 2
         other = "MSS" if trig_name == "CISD" else "CISD"
         f = dict(feats)
+        t_dec_ts = pd.Timestamp(t_dec, tz="UTC")
         f.update(trigger=trig_name, other_trigger=bool(0 <= triggers[other] <= decision),
                  killzone=in_killzone(pd.Timestamp(int(E.t_close[ti]), tz="UTC")),
+                 session=session_flags(t_dec_ts), friday_late=friday_late(t_dec_ts),
                  decision_time=pd.Timestamp(t_dec, tz="UTC"), min_expiry=exp,
                  mtf_mss=_mtf_mss(mkt, range_tf, mirrored, E.t_open[top], t_dec))
         fvg = S.latest_open_bear_fvg(E.h, E.l, top, decision)
@@ -139,10 +169,13 @@ def find_orders(mkt: Market, range_tf: str, entry_tf: str, i: int, k: int, mirro
             entries += [("E2", fvg["bottom"], fvg["top"], False), ("E3", fvg["mid"], fvg["top"], False)]
         if ob:
             entries += [("E4", ob["open"], ob["high"], False), ("E5", ob["mean"], ob["high"], False)]
+        atr_e = mkt.atr[entry_tf][decision]
+        atr_e = atr_e if np.isfinite(atr_e) else 0.0
+        stops = (("S1", sweep_hi), ("S1p", sweep_hi + 2 * spread), ("S1a", sweep_hi + 0.1 * atr_e))
         for ename, lvl, tight, market in entries:
             if not market and lvl <= price_now:     # already past it: no chasing
                 continue
-            for sname, stop in (("S1", sweep_hi), ("S2", tight)):
+            for sname, stop in stops + (("S2", tight),):
                 if stop is None or stop <= lvl:
                     continue
                 rr = {t: ((lvl - p - spread) / (stop - lvl + spread) if p is not None else None)
@@ -150,6 +183,7 @@ def find_orders(mkt: Market, range_tf: str, entry_tf: str, i: int, k: int, mirro
                 if not any(v is not None and v >= K.MIN_RR for v in rr.values()):
                     continue
                 orders.append(dict(f, entry_type=ename, stop_type=sname, entry=lvl, stop=stop,
+                                   risk_spreads=(stop - lvl) / spread,
                                    market=market, targets=targets_base, rr=rr,
                                    t_dec=t_dec, t_end={1: int(end_by_exp[1]), 2: int(end_by_exp[2])}))
     return orders, ("ok" if orders else "rr_too_small")

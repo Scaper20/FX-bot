@@ -30,3 +30,21 @@ def session_of(t_utc: pd.Timestamp) -> str:
     if 0 <= ld.hour < 7:
         return "asia"
     return "late"
+
+
+def session_flags(t_utc: pd.Timestamp) -> str:
+    """'overlap' if inside both London (07:00-16:00 London) and New York (08:00-17:00 NY) sessions,
+    else 'london' or 'newyork', else '' (Asia / late)."""
+    ld = t_utc.tz_convert(LONDON)
+    ny = t_utc.tz_convert(NEW_YORK)
+    in_ld = 7 <= ld.hour < 16
+    in_ny = 8 <= ny.hour < 17
+    if in_ld and in_ny:
+        return "overlap"
+    return "london" if in_ld else ("newyork" if in_ny else "")
+
+
+def friday_late(t_utc: pd.Timestamp) -> bool:
+    """Friday from 15:00 New York time: too close to the weekend close."""
+    ny = t_utc.tz_convert(NEW_YORK)
+    return ny.weekday() == 4 and ny.hour >= 15

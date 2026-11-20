@@ -186,3 +186,24 @@ def fresh_a_levels(o, h, l, c, i_range: int, lookback: int) -> list[float]:
         if fresh:
             out.append(float(lvl))
     return out
+
+
+def structure_direction(h, l, c, n: int) -> np.ndarray:
+    """Market direction from swing breaks, known at each candle's close:
+    +1 after a close above the latest confirmed swing high, -1 after a close
+    below the latest confirmed swing low, 0 before the first break."""
+    out = np.zeros(len(c), dtype=int)
+    cur, sh, sl = 0, None, None
+    for j in range(len(c)):
+        t = j - n                      # swing at t is confirmed when candle j = t + n closes
+        if t >= n:
+            if is_swing_high(h, t, n):
+                sh = h[t]
+            if is_swing_low(l, t, n):
+                sl = l[t]
+        if sh is not None and c[j] > sh:
+            cur, sh = 1, None
+        elif sl is not None and c[j] < sl:
+            cur, sl = -1, None
+        out[j] = cur
+    return out
