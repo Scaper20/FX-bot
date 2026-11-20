@@ -3,7 +3,7 @@ import random
 import pytest
 
 from web import plan, service
-from tests.test_web import env, login, replay  # noqa: F401  (fixtures)
+from tests.conftest import login
 
 
 def seed_practice(store, rule, n, seed=1):

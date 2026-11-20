@@ -26,7 +26,7 @@ from backtest.pattern_stats import ore_rules  # noqa: E402
 from engine import config as K  # noqa: E402
 from engine.candles import clean, load_m1_csv  # noqa: E402
 from engine.feeds.replay import ReplayFeed  # noqa: E402
-from engine.live import ENGINE_VERSION, TF_BARS, all_tf_candles, compact_candles, scan_pair, setup_id, track_card_options  # noqa: E402
+from engine.live import ENGINE_VERSION, all_tf_candles, compact_candles, scan_pair, setup_id, track_card_options  # noqa: E402
 from engine.setups import Market  # noqa: E402
 
 CUTOFF = pd.Timestamp("2025-01-01", tz="UTC")

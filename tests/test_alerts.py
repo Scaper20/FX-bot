@@ -2,7 +2,6 @@ import pandas as pd
 import pytest
 
 from web import alerts, mailer, service
-from tests.test_web import env, replay  # noqa: F401  (fixtures)
 
 
 class Outbox(list):

@@ -1,10 +1,9 @@
 import random
-import re
 
 import pytest
 
 from web import insights, service
-from tests.test_web import env, login, replay  # noqa: F401  (fixtures)
+from tests.conftest import login
 
 
 def seed(store, name, rule, n=150, seed=1):

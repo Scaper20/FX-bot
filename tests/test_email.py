@@ -6,7 +6,7 @@ import urllib.error
 import pytest
 
 from web import community, mailer
-from tests.test_web import csrf, env, login, replay  # noqa: F401  (fixtures)
+from tests.conftest import csrf, login
 
 
 class Outbox:

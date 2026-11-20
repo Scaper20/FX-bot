@@ -35,7 +35,6 @@ def test_cisd_uses_open_of_first_up_candle_in_run():
 
 def test_swing_low_needs_confirmation():
     l = np.array([5, 4, 3, 4, 5, 6.0])
-    h = l + 1
     assert S.last_swing_low(l, known_by=4, n=2, lookback=10) == 2
     assert S.last_swing_low(l, known_by=3, n=2, lookback=10) == -1   # candle 4 not closed yet
 
