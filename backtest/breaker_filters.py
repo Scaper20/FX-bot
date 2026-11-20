@@ -1,5 +1,6 @@
-"""Spec v8 (docs/spec-v8-breaker-filters.md): breaker entry inside a CRT, filtered by Ore's v1.2 rules or by
-Romeo's 3 filters, each with and without MSnR. All years, per-year results and walk-forward.
+"""Spec v8 + v9 (docs/spec-v8-breaker-filters.md, docs/spec-v9-romeo-loose.md): breaker entry inside a CRT,
+filtered by Ore's v1.2 rules or by Romeo's 3 filters (strict, loose, any 2 of 3), each with and without MSnR.
+All years, per-year results and walk-forward.
 
     python -m backtest.breaker_filters
 """
@@ -25,9 +26,13 @@ from engine.sessions import friday_late, session_flags  # noqa: E402
 NY = "America/New_York"
 OUT = ROOT / "backtest" / "out"
 REPORT = ROOT / "backtest" / "reports" / "breaker_filters_v8.md"
+REPORT_V9 = ROOT / "backtest" / "reports" / "romeo_loose_v9.md"
 TESTS = {"1. v1.2 filters": ["v12"], "2. Romeo 3 filters": ["F1", "F2", "F3"],
          "3. v1.2 filters + MSnR": ["v12", "msnr"], "4. Romeo 3 filters + MSnR": ["F1", "F2", "F3", "msnr"]}
 INFO = {"Romeo F1 only": ["F1"], "Romeo F2 only": ["F2"], "Romeo F3 only": ["F3"], "no filter (v6b baseline)": []}
+TESTS_V9 = {"5. Romeo loose 3 filters": ["F1L", "F2L", "F3L"], "6. Romeo loose 3 filters + MSnR": ["F1L", "F2L", "F3L", "msnr"],
+            "7. Romeo any 2 of 3 strict": ["two_of_three"], "8. Romeo any 2 of 3 strict + MSnR": ["two_of_three", "msnr"]}
+INFO_V9 = {"loose F1 only (not against HTF)": ["F1L"], "loose F2 only (key level)": ["F2L"], "loose F3 only (time)": ["F3L"]}
 
 
 def _ts(ns):
@@ -73,8 +78,14 @@ def run_pair(pair):
                 v12_static = bool((with_dir or fvg or ob) and h[s] - h[i] >= 0.1 * atr)
                 f1 = bool(hj >= 1 and bias_bearish(ho, hh, hl, hc, hj))
                 f2 = bool(h[s] > h[i - 10:i].max())
+                # v9 loose: F1 = not bullish (inside bar allowed); F2 = 5-candle high, previous HTF high or HTF zone
+                bull = hj >= 1 and (hc[hj] > hh[hj - 1] or (hl[hj] < hl[hj - 1] and hl[hj - 1] < hc[hj] < hh[hj - 1]))
+                f1l = bool(f1 or (hj >= 1 and not bull))
+                f2l = bool(h[s] > h[i - 5:i].max() or (hj >= 0 and h[s] > hh[hj]) or fvg or ob)
                 ny1 = _ts(Ro[i]).tz_convert(NY)
                 f3 = (ny1.weekday() in (0, 1)) if rtf == "D1" else (ny1.hour == 1 and _ts(Ro[s]).tz_convert(NY).hour == 5)
+                ny2 = _ts(Ro[s]).tz_convert(NY)
+                f3l_static = (ny2.weekday() in (0, 1, 2)) if rtf == "D1" else ny2.hour in (1, 5, 9)
                 msnr = False
                 if hj > 10 and storyline_bearish(ho, hc, hj):
                     resist, _ = fresh_levels(o, h, l, c, i, 60, atr)
@@ -94,6 +105,7 @@ def run_pair(pair):
                         decided = _ts(t_ns if t_ns is not None else Ec_t[j])
                         v12 = v12_static and session_flags(decided) != "" and not friday_late(decided)
                         f3ok = f3 and (rtf == "D1" or decided.tz_convert(NY) <= c3_day + pd.Timedelta("10h30min"))
+                        f3l = f3l_static and (rtf == "D1" or decided.tz_convert(NY) < c3_day + pd.Timedelta("16h"))
                         for stop_name, stop in (("classic", top), ("tight", eh[b])):
                             if not stop > e > far:
                                 continue
@@ -102,7 +114,7 @@ def run_pair(pair):
                             if res:
                                 res.update(pair=pair, tf=rtf, entry=kind, stop=stop_name,
                                            direction="long" if mir else "short", v12=v12, F1=f1, F2=f2,
-                                           F3=bool(f3ok), msnr=bool(msnr))
+                                           F3=bool(f3ok), msnr=bool(msnr), F1L=f1l, F2L=f2l, F3L=bool(f3l))
                                 rows.append(res)
                     break                                                     # first breaker per CRT
     return rows
@@ -134,21 +146,17 @@ def fmt(x, p="+.2f"):
     return "—" if x != x else format(x, p)
 
 
-def main() -> int:
-    rows = []
-    for pair in K.PAIRS:
-        rows += run_pair(pair)
-        print(pair, "done", len(rows), flush=True)
-    df = pd.DataFrame(rows)
-    df["year"] = pd.to_datetime(df["time"], utc=True).dt.year
-    df.to_csv(OUT / "breaker_filters_trades.csv", index=False)
-    pd.set_option("display.width", 250)
-    pd.set_option("display.max_columns", 20)
-    lines = ["# Spec v8 result: breaker entry with Ore's v1.2 filters / Romeo's 3 filters, with and without MSnR", "",
-             "Spec: `docs/spec-v8-breaker-filters.md` (committed before the run). GBP/USD + gold, Nov 2021 – Nov 2026, "
+def report(df, tests, info, title, spec, path):
+    """Per-row yearly tables, walk-forward and a summary for each test; keeps any hand-written
+    '## Reading' section already in the report."""
+    keep = ""
+    if path.exists() and "\n## Reading" in path.read_text():
+        keep = path.read_text()[path.read_text().index("\n## Reading"):]
+    lines = [f"# {title}", "",
+             f"Spec: `{spec}` (committed before the run). GBP/USD + gold, Nov 2021 – Nov 2026, "
              "average R after spread. Consistent = 30+ trades, positive in 4 of 5 years (2022–2026) and in total.", ""]
     summary = []
-    for name, flags in {**TESTS, **INFO}.items():
+    for name, flags in {**tests, **info}.items():
         g = df[mask(df, flags)]
         t = table(g)
         wf, _ = walk(pd.DataFrame({"unit": g["tf"] + " " + g["entry"] + " " + g["stop"] + " " + g["pair"],
@@ -162,7 +170,7 @@ def main() -> int:
         print(f"\n== {name}")
         print(t.round(3).to_string(index=False))
         print("walk-forward:", wf_text)
-        lines += [f"## {name}{' (for information)' if name in INFO else ''}", "",
+        lines += [f"## {name}{' (for information)' if name in info else ''}", "",
                   "| Row (TF entry stop) | Trades | 2022 | 2023 | 2024 | 2025 | 2026 | Avg R | Years + | Consistent |",
                   "|---|---|---|---|---|---|---|---|---|---|"]
         for _, r in t.iterrows():
@@ -175,7 +183,24 @@ def main() -> int:
     lines += ["## Summary", "", "| Test | Trades | Consistent rows (of 12) | Best row avg R | Walk-forward |", "|---|---|---|---|---|"]
     for _, r in s.iterrows():
         lines.append(f"| {r['test']} | {r['trades']} | {r['consistent rows']} | {fmt(r['best avg R'])} | {r['walk-forward']} |")
-    REPORT.write_text("\n".join(lines) + "\n")
+    path.write_text("\n".join(lines) + "\n" + keep)
+
+
+def main() -> int:
+    rows = []
+    for pair in K.PAIRS:
+        rows += run_pair(pair)
+        print(pair, "done", len(rows), flush=True)
+    df = pd.DataFrame(rows)
+    df["year"] = pd.to_datetime(df["time"], utc=True).dt.year
+    df["two_of_three"] = df[["F1", "F2", "F3"]].astype(int).sum(axis=1) >= 2
+    df.to_csv(OUT / "breaker_filters_trades.csv", index=False)
+    pd.set_option("display.width", 250)
+    pd.set_option("display.max_columns", 20)
+    report(df, TESTS, INFO, "Spec v8 result: breaker entry with Ore's v1.2 filters / Romeo's 3 filters, with and without MSnR",
+           "docs/spec-v8-breaker-filters.md", REPORT)
+    report(df, TESTS_V9, INFO_V9, "Spec v9 result: Romeo's filters loosened (and any 2 of 3), with the breaker entry",
+           "docs/spec-v9-romeo-loose.md", REPORT_V9)
     return 0
 
 
