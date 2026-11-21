@@ -186,7 +186,7 @@ def create_app(store=None, feed=None, now_fn=None) -> Flask:
         op = next((o for o in ops if o["id"] == oid), ops[0] if ops else None)
         ch = charts.card_charts(card, op)
         return render_template("setup.html", row=row, card=card, ops=ops, op=op, charts=ch,
-                               text=charts.text_equivalent(card, op, settings()["tz"]),
+                               text=charts.text_equivalent(card, op),
                                reviews=store().list_reviews(sid), status=row.get("status") or {},
                                show_all=request.args.get("all") == "1")
 
@@ -281,7 +281,7 @@ def create_app(store=None, feed=None, now_fn=None) -> Flask:
         op = service.option_by_id(card, card.get("best"))
         ch = charts.card_charts(card, op)
         return render_template("practice.html", item=item, card=card, op=op, charts=ch, prog=prog,
-                               text=charts.text_equivalent(card, op, settings()["tz"]),
+                               text=charts.text_equivalent(card, op),
                                chart_src=url_for("chart_practice", pid=item["id"]))
 
     @app.route("/practice/<pid>", methods=["POST"])
@@ -501,7 +501,7 @@ def create_app(store=None, feed=None, now_fn=None) -> Flask:
         card = item["card"]
         op = service.option_by_id(card, card.get("best"))
         return render_template("p_practice.html", item=item, card=card, op=op, prog=prog,
-                               charts=charts.card_charts(card, op), text=charts.text_equivalent(card, op, "UTC"),
+                               charts=charts.card_charts(card, op), text=charts.text_equivalent(card, op),
                                chart_src=url_for("p_chart", pid=item["id"]))
 
     @app.route("/p/practice/<pid>", methods=["POST"])
@@ -591,10 +591,7 @@ def create_app(store=None, feed=None, now_fn=None) -> Flask:
         return redirect(url_for("p_start"))
 
     # ------------------------------------------------------------ interactive chart data
-    def _tz_offset() -> int:
-        off = pd.Timestamp.now(tz=settings().get("tz", "Africa/Lagos")).utcoffset()
-        return int(off.total_seconds()) if off else 0
-
+    # Charts use GMT+0 (Exness server time) so candles line up with Ore's MT5.
     def _practice_payload(pid: str, answered: bool, tz_offset: int):
         item = service.practice_item(pid)
         if not item:
@@ -619,12 +616,12 @@ def create_app(store=None, feed=None, now_fn=None) -> Flask:
         before = card.get("chart", {}).get("tfs") or {}
         newer = store().get_candles(card["pair"]) if before else {}
         merged = {tf: chartdata.merge(before.get(tf, []), newer.get(tf, [])) for tf in before}
-        return jsonify(chartdata.payload(card, op, merged, None, _tz_offset()))
+        return jsonify(chartdata.payload(card, op, merged, None, 0))
 
     @app.route("/api/chart/practice/<pid>")
     @login_required
     def chart_practice(pid):
-        return _practice_payload(pid, answered=store().get_setup(pid) is not None, tz_offset=_tz_offset())
+        return _practice_payload(pid, answered=store().get_setup(pid) is not None, tz_offset=0)
 
     @app.route("/p/api/chart/<pid>")
     @public_user_required

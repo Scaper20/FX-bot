@@ -267,7 +267,17 @@ def test_live_setup_chart_has_all_timeframes_and_levels(env):
     assert set(data["tfs"]) == {"M5", "M15", "H1", "H4", "D1"}
     titles = {lv["title"] for lv in data["levels"]}
     assert {"Range high", "Range low", "Entry", "Stop", "Target"} <= titles
-    assert data["tz_offset"] == 3600                                   # Lagos
+    assert data["tz_offset"] == 0                                      # GMT+0, same candles as Exness MT5
+    lv = {x["title"]: x for x in data["levels"]}
+    row = store.get_setup(sid)
+    r0 = int(pd.Timestamp(row["card"]["range_open"]).value // 10**9)
+    assert lv["Range high"]["from"] == r0 and lv["Range low"]["from"] == r0   # range lines start at the range candle
+    mk = {m["kind"]: m for m in data["markers"]}
+    assert mk["range"]["time"] == r0 and mk["sweep"]["end"] > mk["sweep"]["time"]
+    # the trigger marker is the trigger candle (its open), not the candle after it
+    trig_candles = [b[0] for b in data["tfs"][data["default_tf"]]]
+    assert mk["trigger"]["time"] in trig_candles
+    assert mk["trigger"]["time"] < lv["Entry"]["from"] + 1 and data["direction"] in ("long", "short")
     assert c.get("/api/chart/setup/does-not-exist").status_code == 404
     anon = app.test_client()
     assert anon.get(f"/api/chart/setup/{sid}").status_code == 302      # private: login needed

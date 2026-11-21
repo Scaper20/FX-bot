@@ -50,6 +50,15 @@ def candles_svg(candles: list, levels: list[dict] | None = None, markers: list[d
                 return i
         return n - 1
 
+    def idx_containing(t):
+        """The candle that contains instant t (last candle opening before t)."""
+        t = pd.Timestamp(t)
+        hit = 0
+        for i, ti in enumerate(times):
+            if ti < t:
+                hit = i
+        return hit
+
     out = [f'<svg viewBox="0 0 {width} {height}" class="chart" role="img" aria-label="{escape(title)}" '
            f'preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">']
     for s in shade:
@@ -82,15 +91,15 @@ def candles_svg(candles: list, levels: list[dict] | None = None, markers: list[d
         placed.append(ly)
         out.append(f'<text x="{width - pad_r + 4}" y="{ly:.1f}" font-size="11" fill="{lv.get("color", INK)}" '
                    f'class="mono">{escape(lv.get("label", ""))}</text>')
-    for m in markers:
-        xi = x(idx_of(m["time"]))
+    for m in markers:          # marker times are close times: draw on the candle that just closed
+        xi = x(idx_containing(m["time"]))
         out.append(f'<line x1="{xi:.1f}" x2="{xi:.1f}" y1="{pad_t}" y2="{height - pad_b}" stroke="{BLUE}" '
                    f'stroke-width="1" stroke-dasharray="2 3"/>')
         out.append(f'<text x="{xi + 3:.1f}" y="{pad_t - 8}" font-size="11" fill="{BLUE}">{escape(m["label"])}</text>')
     first, last = times[0], times[-1]
-    out.append(f'<text x="{pad_l}" y="{height - 6}" font-size="11" fill="{MUTED}">{first:%d %b %H:%M} UTC</text>')
+    out.append(f'<text x="{pad_l}" y="{height - 6}" font-size="11" fill="{MUTED}">{first:%d %b %H:%M} GMT+0</text>')
     out.append(f'<text x="{width - pad_r}" y="{height - 6}" font-size="11" fill="{MUTED}" text-anchor="end">'
-               f'{last:%d %b %H:%M} UTC</text>')
+               f'{last:%d %b %H:%M} GMT+0</text>')
     out.append("</svg>")
     return "".join(out)
 
@@ -122,10 +131,11 @@ def card_charts(card: dict, option: dict | None, after: list | None = None, deci
     return {"range": range_svg, "entry": entry_svg}
 
 
-def text_equivalent(card: dict, option: dict | None, tz: str = "Africa/Lagos") -> str:
+def text_equivalent(card: dict, option: dict | None) -> str:
+    """Words for the chart, in the chart's time: GMT+0 (Exness server time, as on MT5)."""
     pair = card["pair"]
     f = lambda v: _fmt(pair, v)
-    loc = lambda t: pd.Timestamp(t).tz_convert(tz).strftime("%a %d %b %H:%M")
+    loc = lambda t: pd.Timestamp(t).tz_convert("UTC").strftime("%a %d %b %H:%M GMT+0")
     side = "high" if card["direction"] == "short" else "low"
     parts = [
         f"{pair}, {card['range_tf']} range candle opened {loc(card['range_open'])}: high {f(card['range_high'])}, "
@@ -135,7 +145,7 @@ def text_equivalent(card: dict, option: dict | None, tz: str = "Africa/Lagos") -
     ]
     if option:
         parts.append(
-            f"Trigger: {option['trigger']} on {option['entry_tf']} at {loc(option['decision_time'])}. "
+            f"Trigger: {option['trigger']} on {option['entry_tf']}, the trigger candle closed {loc(option['decision_time'])}. "
             f"Option shown: {card['direction']} entry {f(option['entry'])}, stop {f(option['stop'])}, "
             f"target {f(option['target'])}, reward to risk {option['rr']} after spread.")
     return " ".join(parts)

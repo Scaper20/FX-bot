@@ -19,24 +19,38 @@ def _sec(t) -> int:
 
 
 def levels(card: dict, op: dict | None) -> list[dict]:
-    out = [{"price": card["range_high"], "title": "Range high", "color": "#0F1B2D", "dashed": True},
-           {"price": card["range_low"], "title": "Range low", "color": "#0F1B2D", "dashed": True},
-           {"price": card["range_mid"], "title": "50%", "color": "#5B6577", "dashed": True}]
+    """Price levels, each drawn from the moment it exists ("from"), not across the whole chart."""
+    r0 = _sec(card["range_open"])
+    out = [{"price": card["range_high"], "title": "Range high", "color": "#0F1B2D", "dashed": True, "from": r0},
+           {"price": card["range_low"], "title": "Range low", "color": "#0F1B2D", "dashed": True, "from": r0},
+           {"price": card["range_mid"], "title": "50%", "color": "#5B6577", "dashed": True, "from": r0}]
     if card.get("sweep_extreme") is not None:
-        out.append({"price": card["sweep_extreme"], "title": "Sweep", "color": "#2F5D9E", "dashed": True})
+        out.append({"price": card["sweep_extreme"], "title": "Sweep", "color": "#2F5D9E", "dashed": True,
+                    "from": _sec(card.get("sweep_open") or card["range_open"])})
     if op:
-        out += [{"price": op["entry"], "title": "Entry", "color": "#D99A1E"},
-                {"price": op["stop"], "title": "Stop", "color": "#C8473B"},
-                {"price": op["target"], "title": "Target", "color": "#0B7A5A"}]
+        t = _trigger_sec(op)
+        out += [{"price": op["entry"], "title": "Entry", "color": "#D99A1E", "from": t},
+                {"price": op["stop"], "title": "Stop", "color": "#C8473B", "from": t},
+                {"price": op["target"], "title": "Target", "color": "#0B7A5A", "from": t}]
     return out
 
 
+def _trigger_sec(op: dict) -> int:
+    """Open time of the trigger candle. decision_time is its CLOSE, which is the next candle's open,
+    so a marker placed at decision_time would sit one candle late."""
+    step = {"M5": 300, "M15": 900, "H1": 3600, "H4": 14400, "D1": 86400}.get(op.get("entry_tf"), 60)
+    return _sec(op["decision_time"]) - step
+
+
 def markers(card: dict, op: dict | None) -> list[dict]:
-    out = [{"time": _sec(card["range_open"]), "text": f"range {card['range_tf']}", "color": "#D99A1E"}]
+    """R = range candle, S = where the sweep extreme was made (the chart finds that candle on each
+    timeframe inside the sweep candle's time), T = the trigger candle."""
+    out = [{"kind": "range", "time": _sec(card["range_open"]), "text": "R", "color": "#D99A1E"}]
     if card.get("sweep_open"):
-        out.append({"time": _sec(card["sweep_open"]), "text": "sweep", "color": "#2F5D9E"})
+        out.append({"kind": "sweep", "time": _sec(card["sweep_open"]),
+                    "end": _sec(card.get("sweep_close") or card["sweep_open"]), "text": "S", "color": "#2F5D9E"})
     if op:
-        out.append({"time": _sec(op["decision_time"]), "text": "trigger", "color": "#0F1B2D"})
+        out.append({"kind": "trigger", "time": _trigger_sec(op), "text": "T", "color": "#0F1B2D"})
     return out
 
 
@@ -60,7 +74,7 @@ def practice_chart(pid: str) -> dict | None:
 def payload(card: dict, op: dict | None, before: dict, after: dict | None, tz_offset: int,
             reveal_from: str | None = None) -> dict:
     tfs = {tf: before.get(tf, []) for tf in TFS if before.get(tf)}
-    out = {"pair": card["pair"], "precision": 5 if card["pair"] == "GBPUSD" else 2,
+    out = {"pair": card["pair"], "precision": 5 if card["pair"] == "GBPUSD" else 2, "direction": card["direction"],
            "default_tf": (op or {}).get("entry_tf") or card.get("chart", {}).get("entry_tf") or "H1",
            "range_tf": card["range_tf"], "tz_offset": tz_offset, "tfs": tfs,
            "after": {tf: (after or {}).get(tf, []) for tf in tfs} if after else {},

@@ -66,7 +66,7 @@
     box.setAttribute("aria-label", data.pair + " interactive chart; a text description is below the chart");
     var hint = document.createElement("p"); hint.className = "muted small ichart-hint";
     hint.textContent = "Drag to move, scroll or pinch to zoom, drag the price scale to stretch candles. Times " +
-      (off ? "in your time zone" : "in UTC") + ".";
+      (off ? "in your time zone" : "in GMT+0, the same as Exness MT5") + ".";
     el.appendChild(bar); el.appendChild(box); el.appendChild(hint);
 
     var p = data.precision || 5;
@@ -83,15 +83,20 @@
       handleScroll: { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false }
     });
     var main = chart.addCandlestickSeries({ upColor: "#0B7A5A", downColor: "#C8473B", borderVisible: false,
-      wickUpColor: "#0B7A5A", wickDownColor: "#C8473B", priceFormat: fmt });
+      wickUpColor: "#0B7A5A", wickDownColor: "#C8473B", priceFormat: fmt,
+      priceLineVisible: false });            // the dotted last-price line looked like a CRT level
     var later = chart.addCandlestickSeries({ upColor: "rgba(11,122,90,0.35)", downColor: "rgba(200,71,59,0.35)",
       borderVisible: false, wickUpColor: "rgba(11,122,90,0.35)", wickDownColor: "rgba(200,71,59,0.35)",
       priceFormat: fmt, lastValueVisible: false, priceLineVisible: false });
     var narrow = box.clientWidth < 600;           // phones: names in a key below, not on the chart
-    (data.levels || []).forEach(function (lv) {
-      main.createPriceLine({ price: lv.price, color: lv.color, lineWidth: 1,
-        lineStyle: lv.dashed ? LWC.LineStyle.Dashed : LWC.LineStyle.Solid, axisLabelVisible: true,
-        title: narrow ? "" : lv.title });
+    var long = data.direction === "long";
+    // Each level is a line that starts when the level exists (range lines at the range candle,
+    // entry/stop/target at the trigger), not a line across the whole history.
+    var levelSeries = (data.levels || []).map(function (lv) {
+      var ser = chart.addLineSeries({ color: lv.color, lineWidth: 1, priceFormat: fmt,
+        lineStyle: lv.dashed ? LWC.LineStyle.Dashed : LWC.LineStyle.Solid, priceLineVisible: false,
+        lastValueVisible: true, crosshairMarkerVisible: false, title: narrow ? "" : lv.title });
+      return { lv: lv, ser: ser };
     });
     var key = document.createElement("p"); key.className = "ichart-key small";
     (data.levels || []).forEach(function (lv) {
@@ -100,11 +105,9 @@
       k.appendChild(document.createTextNode(lv.title));
       key.appendChild(k);
     });
-    if (narrow) {
-      var mk = document.createElement("span");
-      mk.textContent = "▼ R range candle · S sweep · T trigger";
-      key.appendChild(mk);
-    }
+    var mk = document.createElement("span");
+    mk.textContent = (long ? "▲" : "▼") + " R range candle · S sweep (where the extreme was made) · T trigger candle";
+    key.appendChild(mk);
     el.insertBefore(key, hint);
 
     var current = null;
@@ -115,13 +118,28 @@
       var after = toBars((data.after || {})[tf], off).filter(function (b) { return b.time > lastT; });
       main.setData(bars);
       later.setData(after);
+      var times = bars.concat(after).map(function (b) { return b.time; });
+      levelSeries.forEach(function (x) {
+        var from = x.lv.from !== undefined ? snap(x.lv.from + off, bars) : null;
+        if (from === null) from = times.length ? times[0] : 0;
+        x.ser.setData(times.filter(function (t) { return t >= from; })
+          .map(function (t) { return { time: t, value: x.lv.price }; }));
+      });
       var ms = [], seen = {};
       (data.markers || []).forEach(function (m) {
         var t = snap(m.time + off, bars);
+        if (m.kind === "sweep") {          // the candle inside the sweep candle that made the extreme
+          var best = null;
+          bars.forEach(function (b) {
+            if (b.time >= m.time + off - 1 && b.time < m.end + off &&
+                (best === null || (long ? b.low < best.low : b.high > best.high))) best = b;
+          });
+          if (best) t = best.time;
+        }
         if (t === null) return;
-        var label = narrow ? m.text.charAt(0).toUpperCase() : m.text;
-        if (seen[t]) { seen[t].text += (narrow ? "" : " · ") + label; return; }
-        seen[t] = { time: t, position: "aboveBar", color: m.color, shape: "arrowDown", text: label };
+        if (seen[t]) { seen[t].text += m.text; return; }
+        seen[t] = { time: t, position: long ? "belowBar" : "aboveBar", color: m.color,
+                    shape: long ? "arrowUp" : "arrowDown", text: m.text };
         ms.push(seen[t]);
       });
       ms.sort(function (a, b) { return a.time - b.time; });
