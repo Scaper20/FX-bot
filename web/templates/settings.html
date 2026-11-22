@@ -35,6 +35,17 @@
       <label for="am">Maximum alert emails per day</label>
       <input id="am" name="alert_max" inputmode="numeric" value="{{ al.get('max_per_day', 30) }}" style="max-width:120px">
     </fieldset>
+    <fieldset>
+      <legend>Practice reminders</legend>
+      {% set rm = st.get('reminders') or {} %}
+      <label class="row" style="color:inherit;margin:4px 0"><input type="checkbox" name="rem_community" value="1" style="width:auto" {{ 'checked' if rm.get('community', true) }}> Email practice reminders to traders who opted in to emails</label>
+      <label for="re">Remind each trader at most every (days)</label>
+      <input id="re" name="rem_every" inputmode="numeric" value="{{ rm.get('every_days', 3) }}" style="max-width:120px">
+      <label class="row" style="color:inherit;margin:4px 0"><input type="checkbox" name="rem_owner" value="1" style="width:auto" {{ 'checked' if rm.get('owner', true) }}> Nudge me to practise, with my My test progress</label>
+      <label for="ro">Nudge me at most every (days)</label>
+      <input id="ro" name="rem_owner_every" inputmode="numeric" value="{{ rm.get('owner_every_days', 2) }}" style="max-width:120px">
+      <p class="muted small">Sent once a day around 09:00 Lagos, every day of the week. Nobody who practised in the last 24 hours or has finished every setup is reminded. Traders can unsubscribe from any email.</p>
+    </fieldset>
     <label for="cl">Daily data credit limit (Twelve Data free plan: 800)</label>
     <input id="cl" name="daily_credit_limit" inputmode="numeric" value="{{ st.daily_credit_limit }}">
     <p><button type="submit">Save settings</button></p>

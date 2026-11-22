@@ -21,7 +21,7 @@ from engine.feeds.twelvedata import CALLS_PER_SCAN, FeedError, TwelveDataFeed, f
 from engine.live import ENGINE_VERSION, TRIGGER_LABEL, load_stats
 from engine.sessions import LONDON, NEW_YORK
 
-from . import chartdata, charts, community, insights, mailer, plan, service
+from . import chartdata, charts, community, insights, mailer, plan, reminders, service
 from .store import StoreError, from_env, merged_settings
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -348,6 +348,10 @@ def create_app(store=None, feed=None, now_fn=None) -> Flask:
                            "digest": bool(f.get("alert_digest")), "filtered": bool(f.get("alert_filtered")),
                            "max_per_day": int(_num(f.get("alert_max"), 30))},
                 "spreads_confirmed": True,
+                "reminders": {"community": bool(f.get("rem_community")), "owner": bool(f.get("rem_owner")),
+                              "every_days": min(14, max(1, int(_num(f.get("rem_every"), 3)))),
+                              "owner_every_days": min(14, max(1, int(_num(f.get("rem_owner_every"), 2))))},
+                "last_owner_nudge": st.get("last_owner_nudge", ""),
                 "last_digest": st.get("last_digest", ""), "alert_count": st.get("alert_count", {}),
             }
             if not (0 < new["spreads"]["GBPUSD"] < 0.01 and 0 < new["spreads"]["XAUUSD"] < 20
@@ -554,6 +558,13 @@ def create_app(store=None, feed=None, now_fn=None) -> Flask:
     @login_required
     def community_admin():
         people = store().community_users_all()
+        if request.method == "POST" and request.form.get("action") == "remind":
+            check_csrf()
+            res = reminders.run(store(), settings(), now().to_pydatetime(), request.url_root.rstrip("/"), force=True)
+            flash(f"Practice reminder sent to {res['sent']} trader(s) ({res['failed']} failed); "
+                  f"your own nudge: {res['owner']}." + (f" {res['errors'][0]}" if res["errors"] else ""),
+                  "ok" if not res["failed"] else "error")
+            return redirect(url_for("community_admin"))
         if request.method == "POST":
             check_csrf()
             subject = (request.form.get("subject") or "").strip()[:200]
@@ -579,10 +590,11 @@ def create_app(store=None, feed=None, now_fn=None) -> Flask:
             return render_template("community.html", people=people, recips=community.recipients(store()),
                                    log=store().email_log(), subject=subject, message=message,
                                    mail_ok=mailer.configured(), mail_live=mailer.live(),
-                                   share_url=url_for("p_start", _external=True))
+                                   share_url=url_for("p_start", _external=True), rem=reminders.prefs(settings()))
         return render_template("community.html", people=people, recips=community.recipients(store()),
                                log=store().email_log(), subject="", message="", mail_ok=mailer.configured(),
-                               mail_live=mailer.live(), share_url=url_for("p_start", _external=True))
+                               mail_live=mailer.live(), share_url=url_for("p_start", _external=True),
+                               rem=reminders.prefs(settings()))
 
     @app.route("/p/logout")
     def p_logout():
@@ -646,6 +658,22 @@ def create_app(store=None, feed=None, now_fn=None) -> Flask:
                                    counts_credits=not _is_replay())
             return jsonify(ok=True, ready=row["ready"], armed=row["armed"], message=row["message"])
         except (service.ScanError, StoreError, FeedError) as e:
+            return jsonify(ok=False, error=str(e)), 200
+
+    @app.route("/api/cron/reminders", methods=["GET", "POST"])
+    def cron_reminders():
+        """Daily practice reminders (scheduled job). ?force=1 sends now, ignoring the interval."""
+        auth = request.headers.get("Authorization", "")
+        token = auth[7:] if auth.startswith("Bearer ") else ""
+        valid = [t for t in (os.environ.get("CRON_SECRET"), _db_token()) if t]
+        if not token or not any(hmac.compare_digest(token, t) for t in valid):
+            return jsonify(ok=False, error="unauthorized"), 401
+        try:
+            res = reminders.run(store(), settings(), now().to_pydatetime(), request.url_root.rstrip("/"),
+                                force=request.args.get("force") == "1")
+            res.pop("errors", None)
+            return jsonify(ok=True, **res)
+        except StoreError as e:
             return jsonify(ok=False, error=str(e)), 200
 
     def _db_token():

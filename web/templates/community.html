@@ -9,6 +9,14 @@
   <div class="stat"><div class="muted small">Opted in to updates</div><div class="big">{{ recips | length }}</div></div>
 </div>
 <section class="card">
+  <h2>Practice reminders</h2>
+  {% set rm = rem %}
+  <p class="small">Automatic: <b>{{ 'on' if rm.community else 'off' }}</b> for traders (at most every {{ rm.every_days }} days, {{ recips | length }} opted in), <b>{{ 'on' if rm.owner else 'off' }}</b> for you (every {{ rm.owner_every_days }} days). Sent around 09:00 Lagos daily; skipped for anyone who practised in the last 24 hours. Change it in <a href="{{ url_for('settings_page') }}">Settings</a>.</p>
+  <form method="post"><input type="hidden" name="csrf" value="{{ csrf_token() }}">
+    <button class="btn" type="submit" name="action" value="remind">Send a practice reminder now</button>
+    <span class="muted small">Skips anyone reminded in the last 12 hours, so pressing twice can't spam anyone.</span></form>
+</section>
+<section class="card">
   <h2>Send an update</h2>
   {% if not mail_ok %}<p class="note">Email isn't set up yet: add SENDBYTE_API_KEY and SENDBYTE_FROM in Vercel (see docs/email-setup.md).</p>
   {% elif not mail_live %}<p class="note">You're using a SendByte <b>test</b> key: emails are simulated and nobody receives them. Email sign-in for traders also stays off until a live key and a verified domain are set.</p>{% endif %}
