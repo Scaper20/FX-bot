@@ -30,13 +30,14 @@ def _first(mask_src: np.ndarray, a: int, b: int) -> int:
 
 
 def simulate(h, l, c, start: int, pend_end: int, hold_end_fn, *, entry: float, market: bool,
-             stop: float, targets: dict, t1: float, fill_shift: float, exit_shift: float) -> dict:
+             stop: float, targets: dict, t1: float, fill_shift: float, exit_shift: float,
+             cancel_at_t1: bool = True) -> dict:
     """h, l, c: 1-minute arrays in short space.
     start: first 1-minute candle after the decision.
     pend_end: first 1-minute candle after the order expires (exclusive).
     hold_end_fn(fill_idx) -> exclusive index where the time stop closes the trade.
     targets: name -> price (short space). t1: the 50% level, used to cancel pending orders
-    and for the half-off management.
+    and for the half-off management (cancel_at_t1=False keeps the order alive past 50%: spec v13 test).
     Returns fill info and, per management name, a dict(R, exit, reason)."""
     n = len(h)
     pend_end = min(pend_end, n)
@@ -50,7 +51,7 @@ def simulate(h, l, c, start: int, pend_end: int, hold_end_fn, *, entry: float, m
         fill = _first(h >= entry + fill_shift, start, pend_end)
         if fill < 0:
             return {"status": "expired"}
-        cancel = _first(l <= t1 - exit_shift, start, fill)
+        cancel = _first(l <= t1 - exit_shift, start, fill) if cancel_at_t1 else -1
         if cancel >= 0:
             return {"status": "cancelled"}
         entry_px = entry

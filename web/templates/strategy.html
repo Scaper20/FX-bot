@@ -26,6 +26,7 @@
     <li><b>Entries:</b> market at the trigger close; limit at the lower-timeframe FVG (edge or middle); limit at the order block (open or middle). Order blocks count only if they took liquidity and left an FVG.</li>
     <li><b>Stops, sized for the spread:</b> beyond the sweep extreme plus 2 spreads (default), or plus 0.1 ATR; the tight FVG/OB stop is shown only when the spread is under 15% of the risk.</li>
     <li><b>Targets:</b> the opposite side of the range or the next swing beyond it, all at once or half off at the 50% level with the stop moved to entry.</li>
+    <li><b>Order rules:</b> an unfilled limit is dropped when the second range candle after the sweep candle closes (D1 about 2 days, H4 about 8 hours), or earlier if price reaches the 50% level first. Tested (v13): fills after price already reached 50% lose about −0.4R each, so the cancel stays.</li>
     <li><b>Ranking:</b> by each option's 2021–2024 average result, shrunk towards the overall average for small samples. Sample size is always shown.</li>
   </ul>
 </section>
