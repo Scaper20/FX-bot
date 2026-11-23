@@ -65,7 +65,7 @@ def candidates(mkt: Market, pair: str, start: pd.Timestamp, rng: np.random.Gener
                         continue
                     if k == 2 and (R.h[i + 1] > rh or R.l[i + 1] < rl):
                         continue
-                    if not (R.h[s] > rh and rl < R.c[s] < rh) or R.l[s] < rl:
+                    if not (R.h[s] > rh and S.crt_inside(R.o, R.h, R.l, R.c, i, R.c[s])) or R.l[s] < rl:
                         continue
                     e, stop = R.c[s], R.h[s]
                     risk = stop - e

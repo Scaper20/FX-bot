@@ -19,7 +19,7 @@ from . import config as K
 from .calendar import next_closes
 from .setups import Market, find_orders, track_order
 
-ENGINE_VERSION = "v1.3"
+ENGINE_VERSION = "v1.4"   # v1.4: C2 must close inside C1's body (Ore, 23 Nov 2026)
 STATS_FILE = Path(__file__).resolve().parent / "data" / "pattern_stats.json"
 MGMTS = ("M1_T1", "M1_T2", "M1_T3", "M2_T2", "M2_T3")
 LIVE_STOPS = ("S1p", "S1a", "S2")
@@ -323,8 +323,12 @@ def watch_pair(mkt: Market, pair: str) -> list[dict]:
                 mid = R.iloc[-1]
                 if mid["high"] > prev["high"] or mid["low"] < prev["low"]:
                     continue
-            for side, beyond, inside in (("short", hi > prev["high"], price < prev["high"]),
-                                         ("long", lo < prev["low"], price > prev["low"])):
+            body_lo, body_hi = sorted((float(prev["open"]), float(prev["close"])))
+            in_body = body_lo < price < body_hi                    # Ore's rule: back inside C1's BODY
+            if K.CRT_CLOSE == "range":
+                in_body = float(prev["low"]) < price < float(prev["high"])
+            for side, beyond, inside in (("short", hi > prev["high"], in_body),
+                                         ("long", lo < prev["low"], in_body)):
                 if beyond:
                     out.append({"pair": pair, "range_tf": range_tf, "k": k, "direction": side,
                                 "range_open": prev.name.isoformat(), "range_high": float(prev["high"]),

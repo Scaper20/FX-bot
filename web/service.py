@@ -336,18 +336,24 @@ def practice_items() -> list[dict]:
         return json.load(f)
 
 
+def active_practice_items() -> list[dict]:
+    """Setups still served. Retired ones (e.g. C2 closed in C1's wick, not its body: Ore's rule of
+    23 Nov 2026) stay in the file so answers already given still count in everyone's stats."""
+    return [p for p in practice_items() if not p.get("retired")]
+
+
 def practice_item(pid: str) -> dict | None:
     return next((p for p in practice_items() if p["id"] == pid), None)
 
 
 def next_practice(store) -> dict | None:
     done = {r["setup_id"] for r in store.list_reviews()}
-    return next((p for p in practice_items() if p["id"] not in done), None)
+    return next((p for p in active_practice_items() if p["id"] not in done), None)
 
 
 def practice_progress(store) -> dict:
     done = {r["setup_id"] for r in store.list_reviews()}
-    items = practice_items()
+    items = active_practice_items()
     return {"done": sum(1 for p in items if p["id"] in done), "total": len(items)}
 
 

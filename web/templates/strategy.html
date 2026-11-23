@@ -7,7 +7,7 @@
   <h2>What counts as a setup (CRT)</h2>
   <ol>
     <li><b>Range candle:</b> a finished D1 or H4 candle on Exness server time (GMT+0). Its high, low and 50% level are the range.</li>
-    <li><b>Sweep:</b> the next candle (or the one after, if the middle candle stayed inside) trades beyond one side and <b>closes back inside</b>. Sweeping both sides doesn't count.</li>
+    <li><b>Sweep:</b> the next candle (or the one after, if the middle candle stayed inside) trades beyond one side (past the range candle's high or low) and <b>closes back inside the range candle's body</b>, between its open and close; a close that is only inside the wick doesn't count. Sweeping both sides doesn't count either.</li>
     <li><b>Trigger</b> on a lower timeframe (D1 → H1 or M15; H4 → M15 or M5): a <b>CISD</b> (close beyond the open of the run of candles that made the sweep) or an <b>MSS</b> (close beyond the last swing before the sweep). The setup is <i>armed</i> until then, for up to two range candles. If price goes past the sweep extreme first, it is cancelled.</li>
   </ol>
 </section>

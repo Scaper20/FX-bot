@@ -16,6 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from backtest.romeo import ny_daily, ny_h4  # noqa: E402
 from engine.candles import clean, load_m1_csv, resample  # noqa: E402
+from engine.structure import crt_inside  # noqa: E402
 
 MARKETS = {
     "GBPUSD": ("data/gbpusd-m1-bid-2021-11-01-2026-11-19.csv", 0.00010),
@@ -127,7 +128,7 @@ def fam_D(rows, mkt, m1, atr_by_day, cost):
             Mc = sg * m1["close"].to_numpy(float)
             for i in range(1, len(R) - 3):
                 s, c3 = i + 1, i + 2
-                if not (h[s] > h[i] and l[i] < c[s] < h[i] and l[s] >= l[i]):
+                if not (h[s] > h[i] and crt_inside(o, h, l, c, i, c[s]) and l[s] >= l[i]):
                     continue
                 lvl, mid = h[s], (h[i] + l[i]) / 2
                 ia = int(np.searchsorted(M_t, Ro[c3]))

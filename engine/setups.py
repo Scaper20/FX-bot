@@ -130,7 +130,7 @@ def find_orders(mkt: Market, range_tf: str, entry_tf: str, i: int, k: int, mirro
     if k == 2:      # middle candle must stay inside without sweeping either side
         if R.h[i + 1] > rh or R.l[i + 1] < rl:
             return [], "middle_broke"
-    if not (R.h[s] > rh and rl < R.c[s] < rh):
+    if not (R.h[s] > rh and S.crt_inside(R.o, R.h, R.l, R.c, i, R.c[s])):
         return [], "no_sweep"
     if R.l[s] < rl:
         return [], "both_sides"

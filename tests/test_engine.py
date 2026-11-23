@@ -258,3 +258,14 @@ def test_track_order_reports_pending_then_final(gbp):
     assert final["status"] in ("filled", "expired", "cancelled")
     if final["status"] == "filled":
         assert all(r["state"] in ("stop", "target", "breakeven", "time") for r in final["results"].values())
+
+
+def test_crt_close_must_be_inside_c1_body(monkeypatch):
+    from engine import config as K
+    o, c = np.array([10.0]), np.array([12.0])           # C1 body 10-12, wick 9-14
+    h, l = np.array([14.0]), np.array([9.0])
+    assert S.crt_inside(o, h, l, c, 0, 11.0)             # inside the body
+    assert not S.crt_inside(o, h, l, c, 0, 13.0)         # inside the wick only: not a CRT (Ore, 23 Nov 2026)
+    assert not S.crt_inside(o, h, l, c, 0, 9.5)
+    monkeypatch.setattr(K, "CRT_CLOSE", "range")         # old, looser rule still available for comparison
+    assert S.crt_inside(o, h, l, c, 0, 13.0)

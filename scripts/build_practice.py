@@ -51,7 +51,9 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--n", type=int, default=400)
     ap.add_argument("--seed", type=int, default=20)
+    ap.add_argument("--out", default=str(OUT), help="output file (merge it in with scripts/merge_practice.py)")
     a = ap.parse_args()
+    out = Path(a.out)
     cand = candidates()
     rng = np.random.default_rng(a.seed)
     per_pair = a.n // len(K.PAIRS)
@@ -103,12 +105,12 @@ def main() -> int:
     allitems = [it for v in items.values() for it in v]
     order = rng.permutation(len(allitems))
     allitems = [allitems[i] for i in order]
-    OUT.parent.mkdir(parents=True, exist_ok=True)
-    with gzip.open(OUT, "wt") as f:
+    out.parent.mkdir(parents=True, exist_ok=True)
+    with gzip.open(out, "wt") as f:
         json.dump(allitems, f, separators=(",", ":"))
     filled = sum(1 for it in allitems for s in it["outcome"].values() if s["status"] == "filled")
-    print(f"wrote {len(allitems)} practice setups ({filled} filled options) to {OUT.relative_to(ROOT)}, "
-          f"{OUT.stat().st_size / 1e6:.1f} MB, {time.time() - t0:.0f}s")
+    print(f"wrote {len(allitems)} practice setups ({filled} filled options) to {out}, "
+          f"{out.stat().st_size / 1e6:.1f} MB, {time.time() - t0:.0f}s")
     return 0
 
 

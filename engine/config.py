@@ -1,13 +1,17 @@
 """Fixed settings. Changing anything here after the Final run contaminates it."""
+import os
 
 # Exness MT5 server time is GMT+0 (Ore saw the Sunday candle, 20 Nov 2026).
 DAY_CLOSE = "utc0"
 
-# Spread + slippage per trade, in price units. Assumption until Ore sends his
-# real Exness Standard spreads. Results are also reported at 2x.
+# CRT: C2 must close back inside C1's BODY (open-close), Ore's rule of 23 Nov 2026.
+# CRT_CLOSE=range reproduces the older (looser) tests, which accepted any close inside C1's high-low.
+CRT_CLOSE = os.environ.get("CRT_CLOSE", "body")
+
+# Spread per trade, in price units: Ore's Exness Standard spreads, London session (23 Nov 2026).
 PAIRS = {
     "GBPUSD": {"spread": 0.00010, "pip": 0.0001, "file": "data/gbpusd-m1-bid-2021-11-01-2026-11-19.csv"},
-    "XAUUSD": {"spread": 0.35, "pip": 0.1, "file": "data/xauusd-m1-bid-2021-11-01-2026-11-19.csv"},
+    "XAUUSD": {"spread": 0.24, "pip": 0.1, "file": "data/xauusd-m1-bid-2021-11-01-2026-11-19.csv"},
 }
 
 RANGE_TO_ENTRY = {"D1": ("H1", "M15"), "H4": ("M15", "M5")}

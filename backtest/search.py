@@ -22,6 +22,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from backtest.romeo import arrays, bias_bearish, first_passage, ny_daily, ny_h4, ny_weekly  # noqa: E402
 from engine import config as K  # noqa: E402
+from engine.structure import crt_inside  # noqa: E402
 from engine import structure as S  # noqa: E402
 from engine.candles import clean, load_m1_csv, resample  # noqa: E402
 from engine.simulate import simulate  # noqa: E402
@@ -92,7 +93,7 @@ def scan(m1: pd.DataFrame, pair: str, partner: pd.DataFrame | None = None) -> li
                 if R_open[i] < START.value:
                     continue
                 s, c3 = i + 1, i + 2
-                if not (h[s] > h[i] and l[i] < c[s] < h[i] and l[s] >= l[i]):
+                if not (h[s] > h[i] and crt_inside(o, h, l, c, i, c[s]) and l[s] >= l[i]):
                     continue
                 rng = h[i] - l[i]
                 atr = np.mean(h[i - 14:i] - l[i - 14:i])

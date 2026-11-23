@@ -141,7 +141,7 @@ def text_equivalent(card: dict, option: dict | None) -> str:
         f"{pair}, {card['range_tf']} range candle opened {loc(card['range_open'])}: high {f(card['range_high'])}, "
         f"low {f(card['range_low'])}, 50% {f(card['range_mid'])}.",
         f"The sweep candle (+{card['k']}) opened {loc(card['sweep_open'])}, traded beyond the range {side} to "
-        f"{f(card['sweep_extreme'])} and closed back inside.",
+        f"{f(card['sweep_extreme'])} and closed back inside the range candle's body.",
     ]
     if option:
         parts.append(

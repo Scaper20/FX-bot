@@ -47,7 +47,16 @@ def test_no_owner_email_means_no_alerts(env, box):
 def test_scan_alerts_updates_and_digest(env, box):
     app, store, clock = env
     owner(store, filtered=True)
-    row = scan(app, store, "2023-06-07 10:15")
+    # scan forward through a week until the first setup is logged (independent of which day has one)
+    t0 = None
+    for t in pd.date_range("2023-06-05 08:15", "2023-06-16 16:15", freq="2h", tz="UTC"):
+        if t.weekday() >= 5:
+            continue
+        row = scan(app, store, str(t.tz_localize(None)))
+        if store.list_setups(source="live"):
+            t0 = t
+            break
+    assert t0 is not None, "no setup found in two weeks of replay"
     assert len(box) <= 1
     if box:
         assert box[0]["to"] == "me@example.com" and "new setup" in box[0]["subject"]
@@ -56,15 +65,20 @@ def test_scan_alerts_updates_and_digest(env, box):
     for r in store.list_setups(source="live"):              # Ore takes everything he saw
         store.add_review({"setup_id": r["id"], "decision": "take", "option_id": r["card"]["best"]})
     n0 = len(box)
-    for t in ("2023-06-07 14:00", "2023-06-08 10:00", "2023-06-09 12:00", "2023-06-12 10:00"):
-        scan(app, store, t)
+    for d in range(1, 12):
+        t = t0 + pd.Timedelta(days=d)
+        if t.weekday() < 5:
+            scan(app, store, str(t.tz_localize(None)))
     updates = [e for e in box[n0:] if "update" in e["subject"]]
     assert updates, "expected trade update emails as logged setups resolved"
     assert all(e["subject"].startswith("CRT Scanner:") for e in box)
     # daily summary: once, after 17:00 New York
     before = len(box)
-    scan(app, store, "2023-06-12 21:30")          # 17:30 New York
-    scan(app, store, "2023-06-12 21:45")
+    day = (t0 + pd.Timedelta(days=14)).normalize()
+    while day.weekday() >= 5:
+        day += pd.Timedelta(days=1)
+    scan(app, store, str((day + pd.Timedelta("21h30min")).tz_localize(None)))   # 17:30 New York (summer)
+    scan(app, store, str((day + pd.Timedelta("21h45min")).tz_localize(None)))
     digests = [e for e in box[before:] if "daily summary" in e["subject"]]
     assert len(digests) == 1 and "setup(s) logged" in digests[0]["text"]
 

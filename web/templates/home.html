@@ -55,11 +55,11 @@
   <li><b>{{ w.pair }}</b> {{ dir_pill(w.direction) }} <span class="pill">{{ w.range_tf }}{% if w.k == 2 %}, second candle{% endif %}</span><br>
     The forming {{ w.range_tf }} candle went {{ 'above' if w.direction == 'short' else 'below' }} the previous {{ 'high' if w.direction == 'short' else 'low' }}
     <span class="mono">{{ price(w.pair, lvl) }}</span> (to <span class="mono">{{ price(w.pair, w.extreme) }}</span>).
-    Price now <span class="mono">{{ price(w.pair, w.price) }}</span>, {{ '<b>back inside</b>' | safe if w.back_inside else 'still outside' }}.
+    Price now <span class="mono">{{ price(w.pair, w.price) }}</span>, {{ '<b>back inside its body</b>' | safe if w.back_inside else 'not back inside its body yet' }}.
     <span class="muted">Candle closes {{ loc(w.closes_at) }}.</span></li>
 {% endfor %}
 </ul>
-<p class="muted small">A CRT only forms if the candle closes back inside the range. Nothing to do yet; this is a heads-up.</p>
+<p class="muted small">A CRT only forms if the candle closes back inside the range candle's <b>body</b> (between its open and close). Nothing to do yet; this is a heads-up.</p>
 {% else %}<p class="muted">Nothing sweeping a previous candle right now.</p>{% endif %}
 
 {% if d.in_play %}

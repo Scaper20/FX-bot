@@ -54,7 +54,7 @@ def main() -> int:
             "last": g["decision_time"].max().strftime("%Y-%m-%d"),
         }
     OUT.parent.mkdir(parents=True, exist_ok=True)
-    meta = {"_meta": {"period": "2021-11-01 to 2024-12-31", "rules": "spec v1.3 recommended filters",
+    meta = {"_meta": {"period": "2021-11-01 to 2024-12-31", "rules": "spec v1.3 recommended filters, body-close CRT (v1.4)",
                       "trades": int(len(t)), "setups": int(t.groupby(["pair", "decision_time"]).ngroups)}}
     OUT.write_text(json.dumps({**meta, **out}, indent=0))
     print(f"{len(out)} option patterns from {len(t)} trades -> {OUT.relative_to(ROOT)}")

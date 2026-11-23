@@ -19,6 +19,7 @@ from backtest.breaker import breakers, entries, fill_window  # noqa: E402
 from backtest.romeo import arrays, bias_bearish, ny_daily, ny_h4, ny_weekly  # noqa: E402
 from backtest.walkforward import verdict, walk  # noqa: E402
 from engine import config as K  # noqa: E402
+from engine.structure import crt_inside  # noqa: E402
 from engine import structure as S  # noqa: E402
 from engine.candles import clean, load_m1_csv, resample  # noqa: E402
 from engine.sessions import friday_late, session_flags  # noqa: E402
@@ -70,7 +71,7 @@ def run_pair(pair, markets=K.PAIRS):
                 if Ro[i] < START.value:
                     continue
                 s, c3 = i + 1, i + 2
-                if not (h[s] > h[i] and l[i] < c[s] < h[i] and l[s] >= l[i]):
+                if not (h[s] > h[i] and crt_inside(o, h, l, c, i, c[s]) and l[s] >= l[i]):
                     continue
                 mid, far = (h[i] + l[i]) / 2, l[i]
                 atr = np.mean(h[i - 14:i] - l[i - 14:i])

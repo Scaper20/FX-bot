@@ -161,7 +161,7 @@ def run_pair(pair):
                 if bt > bb and h[s] > bt and h[s] <= h[i] and bb < c[s] < bt:
                     add("rejection block", "setup", c[s], h[s], (bt + bb) / 2, bb, Rc[s])
                 # ---- the wick CRT
-                if not (h[s] > h[i] and l[i] < c[s] < h[i] and l[s] >= l[i]):
+                if not (h[s] > h[i] and S.crt_inside(o, h, l, c, i, c[s]) and l[s] >= l[i]):
                     rows += events
                     continue
                 mid, far = (h[i] + l[i]) / 2, l[i]

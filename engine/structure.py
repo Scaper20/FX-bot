@@ -9,6 +9,16 @@ from __future__ import annotations
 
 import numpy as np
 
+from . import config as K
+
+
+def crt_inside(o, h, l, c, i: int, x: float) -> bool:
+    """Is price x 'back inside' range candle i? Ore's rule: inside its BODY (between open and close).
+    CRT_CLOSE=range (old tests) uses the full high-low range instead."""
+    if K.CRT_CLOSE == "range":
+        return bool(l[i] < x < h[i])
+    return bool(min(o[i], c[i]) < x < max(o[i], c[i]))
+
 
 def mirror(o, h, l, c):
     """Flip prices upside down: a bullish pattern becomes a bearish one."""
