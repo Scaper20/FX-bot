@@ -12,3 +12,6 @@ Ore's request: find the bias on **D1 and H4**, drop to the entry timeframe, wait
 
 ## Judged (same standard as before)
 A row is **consistent** with at least 30 trades, average R after spread positive in at least 4 of 5 years (2022–2026) and in total, and the target hit at least as often as chance (25% at 3R). Walk-forward per bias version. Any consistent row is frozen and rerun on EUR/USD + silver before it counts. 60 rows (2 timeframes × 5 entries × 3 bias versions × 2 session versions), so a couple of lucky passes are expected.
+
+## Addendum (25 Nov 2026, after the main run, before the fresh-market run)
+9 of 60 rows were consistent, all on H1 with limit entries (FVG/OB), strongest with D1 + H4 bias. **Main row, fixed now:** H1, D1 + H4 bias, **E4 limit at the order block's open**, all sessions (+0.27R after spread, 234 trades, 5 of 5 years, target 32.9% vs 25%). Frozen exactly as is and run on **EUR/USD (1.0 pip) and silver ($0.025)**. It passes only if, on the two markets pooled: average R after spread > 0, positive in at least 3 of the 5 years 2022–2026, target hit at least as often as chance (25%), at least 30 trades. The other H1 limit rows with D1+H4 bias are reported alongside but don't decide.
