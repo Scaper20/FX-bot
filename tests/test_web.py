@@ -281,3 +281,32 @@ def test_live_setup_chart_has_all_timeframes_and_levels(env):
     assert c.get("/api/chart/setup/does-not-exist").status_code == 404
     anon = app.test_client()
     assert anon.get(f"/api/chart/setup/{sid}").status_code == 302      # private: login needed
+
+
+def test_order_block_model_logged_and_shown_separately(env):
+    app, store, clock = env
+    c = app.test_client()
+    login(c)
+    feed = app.extensions["feed_factory"]()
+    sid = None
+    for day in pd.date_range("2023-03-01", "2023-07-20", freq="1D", tz="UTC"):
+        if day.weekday() >= 5:
+            continue
+        service.run_scan(store, feed, day + pd.Timedelta("15h"), trigger="test", counts_credits=False)
+        sid = next((r["id"] for r in store.list_setups(source="live") if r["card"].get("model")), None)
+        if sid:
+            break
+    assert sid, "expected an order-block setup to be logged"
+    page = c.get(f"/setup/{sid}").get_data(as_text=True)
+    assert "H1 order block" in page and "watch-only model" in page and "Range high" not in page
+    data = c.get(f"/api/chart/setup/{sid}").get_json()
+    titles = {lv["title"] for lv in data["levels"]}
+    assert {"Entry (order block open)", "Stop", "Target 3R"} <= titles
+    long = store.get_setup(sid)["direction"] == "long"
+    assert ("Bottom of the move" if long else "Top of the move") in titles
+    assert ("Swing high broken (MSS)" if long else "Swing low broken (MSS)") in titles
+    assert "order block" in data["marker_key"]
+    perf = c.get("/performance").get_data(as_text=True)
+    assert "Watch-only: H1 order block" in perf
+    assert all(not r["card"].get("model") for r in store.list_setups(source="live")
+               if r["recommended"])                       # never mixed into the CRT recommendations

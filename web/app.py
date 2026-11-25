@@ -266,6 +266,7 @@ def create_app(store=None, feed=None, now_fn=None) -> Flask:
     @login_required
     def performance():
         return render_template("performance.html", live=service.performance(store(), "live"),
+                               model=service.model_performance(store()),
                                practice=service.performance(store(), "practice"),
                                community=community.all_stats(store()),
                                share_url=url_for("p_start", _external=True))
@@ -346,6 +347,7 @@ def create_app(store=None, feed=None, now_fn=None) -> Flask:
                 "owner_email": community.norm_email(f.get("owner_email")) if community.valid_email(f.get("owner_email") or "") else "",
                 "alerts": {"new": bool(f.get("alert_new")), "outcomes": bool(f.get("alert_outcomes")),
                            "digest": bool(f.get("alert_digest")), "filtered": bool(f.get("alert_filtered")),
+                           "smc": bool(f.get("alert_smc")),
                            "max_per_day": int(_num(f.get("alert_max"), 30))},
                 "spreads_confirmed": True,
                 "reminders": {"community": bool(f.get("rem_community")), "owner": bool(f.get("rem_owner")),

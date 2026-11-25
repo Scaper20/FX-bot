@@ -60,4 +60,14 @@
   <p class="muted small">Usernames have no password, so anyone could type someone else's name. Treat a trader's numbers as theirs only if you trust who is behind the name.</p>
   {% else %}<p class="muted">No community answers yet.</p>{% endif %}
 </section>
+<section class="card">
+  <h2>Watch-only: H1 order block · D1+H4 bias</h2>
+  <p class="muted small">Logged live the moment each setup forms (spec v16). Backtest: +0.27R a trade on GBP/USD + gold, −0.12R on EUR/USD + silver. Kept out of the CRT numbers above. Chance at 3R = 25%.</p>
+  <div class="grid three">
+    <div class="stat"><div class="muted small">Setups logged</div><div class="big">{{ model.logged }}</div></div>
+    <div class="stat"><div class="muted small">Finished trades · win rate vs chance</div><div class="big">{{ model.trades }} · {{ pct(model.win_rate) if model.trades else '—' }} vs {{ pct(model.chance_win_rate) if model.trades else '25%' }}</div></div>
+    <div class="stat"><div class="muted small">Avg R after spread · total</div><div class="big">{{ rfmt(model.avg_R) if model.trades else '—' }} · {{ rfmt(model.total_R) }}</div></div>
+  </div>
+  <p class="muted small">Under about 50 finished trades, these numbers are mostly luck.</p>
+</section>
 {% endblock %}

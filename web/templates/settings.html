@@ -30,6 +30,7 @@
       {% set al = st.get('alerts') or {} %}
       <label class="row" style="color:inherit;margin:4px 0"><input type="checkbox" name="alert_new" value="1" style="width:auto" {{ 'checked' if al.get('new', true) }}> New setups that match my rules and can still be acted on</label>
       <label class="row" style="color:inherit;margin:4px 0"><input type="checkbox" name="alert_filtered" value="1" style="width:auto" {{ 'checked' if al.get('filtered', false) }}> Also new setups filtered out by my rules</label>
+      <label class="row" style="color:inherit;margin:4px 0"><input type="checkbox" name="alert_smc" value="1" style="width:auto" {{ 'checked' if al.get('smc', true) }}> New H1 order-block setups (D1+H4 bias, watch-only model)</label>
       <label class="row" style="color:inherit;margin:4px 0"><input type="checkbox" name="alert_outcomes" value="1" style="width:auto" {{ 'checked' if al.get('outcomes', true) }}> Trade updates: entry filled, target, stop (my Takes and setups matching my rules)</label>
       <label class="row" style="color:inherit;margin:4px 0"><input type="checkbox" name="alert_digest" value="1" style="width:auto" {{ 'checked' if al.get('digest', true) }}> Daily summary after the New York close</label>
       <label for="am">Maximum alert emails per day</label>

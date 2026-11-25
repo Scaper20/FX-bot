@@ -20,7 +20,7 @@ from backtest.advanced import START, Outcome  # noqa: E402
 from backtest.romeo import arrays  # noqa: E402
 from engine import config as K  # noqa: E402
 from engine.candles import clean, load_m1_csv, resample  # noqa: E402
-from engine.structure import crt_inside  # noqa: E402
+from engine.structure import crt_inside, swing_flags  # noqa: E402
 
 OUT = ROOT / "backtest" / "out"
 NY = "America/New_York"
@@ -35,18 +35,6 @@ CORE_TFS = ("H4", "H1", "M15", "M5")
 
 
 # ------------------------------------------------------------------ helpers
-
-def swing_flags(h: np.ndarray, l: np.ndarray):
-    """5-bar fractal swings (strict). A swing at k is only known once candle k+2 has closed."""
-    n = len(h)
-    sh = np.zeros(n, bool)
-    sl = np.zeros(n, bool)
-    if n > 4:
-        m = slice(2, n - 2)
-        sh[m] = (h[2:-2] > h[1:-3]) & (h[2:-2] > h[:-4]) & (h[2:-2] > h[3:-1]) & (h[2:-2] > h[4:])
-        sl[m] = (l[2:-2] < l[1:-3]) & (l[2:-2] < l[:-4]) & (l[2:-2] < l[3:-1]) & (l[2:-2] < l[4:])
-    return sh, sl
-
 
 def rr(e: float, t: float, stop: float, sp: float) -> float:
     """Reward:risk after spread, bearish space (entry above target, stop above entry)."""

@@ -306,6 +306,8 @@ def track_order(mkt: Market, order: dict, range_tf: str, mirrored: bool, spread:
     Returns {status, fill_time?, results: {mgmt: {state, R, exit_time?}}}."""
     tf = "M1" if ("M1", mirrored) in mkt.view else "M5"
     M = mkt.view[(tf, mirrored)]
+    range_tf = order.get("hold_tf", range_tf)          # other models can carry their own time stop
+    hold_n = int(order.get("hold_n", K.HOLD_RANGE_CANDLES))
     R = mkt.view[(range_tf, mirrored)]
     n = len(M.t_open)
     start = int(np.searchsorted(M.t_open, order["t_dec"], side="left"))
@@ -314,7 +316,7 @@ def track_order(mkt: Market, order: dict, range_tf: str, mirrored: bool, spread:
     last_close = int(M.t_close[-1]) if n else 0
 
     def hold_stop_ns(t0: int) -> int:
-        j = int(np.searchsorted(R.t_close, t0, side="left")) + K.HOLD_RANGE_CANDLES - 1
+        j = int(np.searchsorted(R.t_close, t0, side="left")) + hold_n - 1
         if j < len(R.t_close):
             return int(R.t_close[j])
         have = int(R.t_close[-1]) if len(R.t_close) else t0

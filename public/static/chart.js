@@ -106,7 +106,7 @@
       key.appendChild(k);
     });
     var mk = document.createElement("span");
-    mk.textContent = (long ? "▲" : "▼") + " R range candle · S sweep (where the extreme was made) · T trigger candle";
+    mk.textContent = (long ? "▲" : "▼") + " " + (data.marker_key || "R range candle · S sweep (where the extreme was made) · T trigger candle");
     key.appendChild(mk);
     el.insertBefore(key, hint);
 

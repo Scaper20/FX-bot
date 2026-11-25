@@ -12,7 +12,12 @@ import pandas as pd
 from . import mailer
 
 NY = "America/New_York"
-DEFAULTS = {"new": True, "outcomes": True, "digest": True, "filtered": False, "max_per_day": 30}
+DEFAULTS = {"new": True, "outcomes": True, "digest": True, "filtered": False, "smc": True, "max_per_day": 30}
+
+
+def kind(card: dict) -> str:
+    """Short name of the setup type, for emails."""
+    return card.get("model_label") or f"{card['range_tf']} CRT"
 
 
 def prefs(settings: dict) -> dict:
@@ -29,12 +34,13 @@ def _loc(t, tz: str) -> str:
 
 def new_setup_line(card: dict, base: str, tz: str) -> tuple[str, str]:
     op = card["options"][0]
-    rule = "matches your rules" if card["recommended"] else "a rule is NOT met"
-    text = (f"{card['pair']} {card['direction'].upper()} · {card['range_tf']} CRT · {rule}\n"
+    rule = ("watch-only model (failed the fresh-market test)" if card.get("model")
+            else "matches your rules" if card["recommended"] else "a rule is NOT met")
+    text = (f"{card['pair']} {card['direction'].upper()} · {kind(card)} · {rule}\n"
             f"  Entry {_price(card['pair'], op['entry'])}  Stop {_price(card['pair'], op['stop'])}  "
             f"Target {_price(card['pair'], op['target'])}  (1:{op['rr']:.1f}, chance win rate {op['chance']:.0%})\n"
             f"  {op['entry_tf']} {op['trigger']} trigger at {_loc(op['decision_time'], tz)}\n  {base}/setup/{card['id']}")
-    html = (f"<p><b>{escape(card['pair'])} {escape(card['direction'].upper())}</b> · {escape(card['range_tf'])} CRT · {rule}<br>"
+    html = (f"<p><b>{escape(card['pair'])} {escape(card['direction'].upper())}</b> · {escape(kind(card))} · {rule}<br>"
             f"Entry <b>{_price(card['pair'], op['entry'])}</b> · Stop <b>{_price(card['pair'], op['stop'])}</b> · "
             f"Target <b>{_price(card['pair'], op['target'])}</b> (1:{op['rr']:.1f}, chance {op['chance']:.0%})<br>"
             f"{escape(op['entry_tf'])} {escape(op['trigger'])} trigger at {_loc(op['decision_time'], tz)}<br>"
@@ -86,7 +92,7 @@ def send_scan_alert(store, settings: dict, new_cards: list[dict], events: list[d
     p = prefs(settings)
     if not to or not mailer.configured():
         return None
-    cards = [c for c in new_cards if p["new"] and (c["recommended"] or p["filtered"])]
+    cards = [c for c in new_cards if p["new"] and (c["recommended"] or p["filtered"] or (c.get("model") and p["smc"]))]
     evs = events if p["outcomes"] else []
     if not cards and not evs:
         return None

@@ -33,8 +33,10 @@
 {% set lot = lot_size(card.pair, op.entry, op.stop) %}
 <article class="card">
   <div class="setup-head">
-    <div class="setup-title">{{ card.pair }} {{ dir_pill(card.direction) }} <span class="pill">{{ card.range_tf }} range</span>
-      {% if card.recommended %}<span class="pill rec">matches your rules</span>{% else %}<span class="pill warn">a rule is not met</span>{% endif %}</div>
+    <div class="setup-title">{{ card.pair }} {{ dir_pill(card.direction) }}
+      {% if card.model %}<span class="pill">{{ card.model_label }}</span> <span class="pill warn">watch-only model</span>
+      {% else %}<span class="pill">{{ card.range_tf }} range</span>
+      {% if card.recommended %}<span class="pill rec">matches your rules</span>{% else %}<span class="pill warn">a rule is not met</span>{% endif %}{% endif %}</div>
     <div class="muted small">first seen {{ loc(row.first_seen) }} · trigger {{ loc(op.decision_time) }}</div>
   </div>
   <p class="small" style="margin:6px 0 0">Best-ranked option: {{ option_line(card, op) }}</p>

@@ -340,11 +340,14 @@ def watch_pair(mkt: Market, pair: str) -> list[dict]:
 def scan(markets: dict[str, Market], spreads: dict[str, float]) -> dict:
     """Scan all pairs. Returns {'ready': [...], 'armed': [...], 'watch': [...]} with ready cards
     ranked: recommended first, then by the best option's ranking score."""
+    from .smc_live import scan_smc_pair
+
     ready, armed, watch = [], [], []
     for pair, mkt in markets.items():
         for c in scan_pair(mkt, pair, spreads[pair]):
             (ready if c["state"] == "ready" else armed).append(c)
         watch += watch_pair(mkt, pair)
+        ready += scan_smc_pair(mkt, pair, spreads[pair])      # watch-only H1 order-block model (spec v16)
 
     def card_key(c):
         b = c["options"][0] if c["options"] else None

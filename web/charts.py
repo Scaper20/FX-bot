@@ -108,6 +108,21 @@ def card_charts(card: dict, option: dict | None, after: list | None = None, deci
     """Two charts for a setup card: the range timeframe and the entry timeframe."""
     pair = card["pair"]
     f = lambda v: _fmt(pair, v)
+    if card.get("model"):
+        m = card["smc"]
+        lv = [{"price": m["top_price"], "label": f"{'Bottom' if card['direction'] == 'long' else 'Top'} {f(m['top_price'])}",
+               "color": INK, "dash": True},
+              {"price": m["swing_price"], "label": f"Swing {f(m['swing_price'])}", "color": BLUE, "dash": True}]
+        mk = []
+        if option:
+            lv += [{"price": option["entry"], "label": f"Entry {f(option['entry'])}", "color": AMBER},
+                   {"price": option["stop"], "label": f"Stop {f(option['stop'])}", "color": DOWN},
+                   {"price": option["target"], "label": f"Target {f(option['target'])}", "color": UP}]
+            mk.append({"time": option["decision_time"], "label": "MSS"})
+        shade = [{"start": m["ob_time"], "end": m["ob_time"], "color": AMBER}]
+        svg = candles_svg(card["chart"]["entry"] + (after or []), lv, mk, shade=shade, pair=pair,
+                          after_from=decision if after else None, title=f"{pair} H1 order-block chart")
+        return {"range": svg, "entry": svg}
     rng_levels = [
         {"price": card["range_high"], "label": f"High {f(card['range_high'])}", "color": INK, "dash": True},
         {"price": card["range_low"], "label": f"Low {f(card['range_low'])}", "color": INK, "dash": True},
@@ -136,6 +151,18 @@ def text_equivalent(card: dict, option: dict | None) -> str:
     pair = card["pair"]
     f = lambda v: _fmt(pair, v)
     loc = lambda t: pd.Timestamp(t).tz_convert("UTC").strftime("%a %d %b %H:%M GMT+0")
+    if card.get("model"):
+        m = card["smc"]
+        side = "high" if card["direction"] == "long" else "low"
+        ext = "bottomed out" if card["direction"] == "long" else "topped out"
+        txt = (f"{pair}, {m['bias']} structure. On H1 the move {ext} at {f(m['top_price'])} "
+               f"({loc(m['top_time'])}), then a candle closed beyond the swing {side} at {f(m['swing_price'])} "
+               f"(market structure shift, candle opened {loc(m['mss_time'])}). Order block candle opened "
+               f"{loc(m['ob_time'])}: its open {f(m['ob_open'])} is the entry.")
+        if option:
+            txt += (f" Limit {card['direction']} entry {f(option['entry'])}, stop {f(option['stop'])}, "
+                    f"target {f(option['target'])} (3R).")
+        return txt
     side = "high" if card["direction"] == "short" else "low"
     parts = [
         f"{pair}, {card['range_tf']} range candle opened {loc(card['range_open'])}: high {f(card['range_high'])}, "

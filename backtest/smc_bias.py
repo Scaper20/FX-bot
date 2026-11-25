@@ -14,7 +14,6 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from backtest.advanced import START, Outcome  # noqa: E402
-from backtest.liquidity_ie import swing_flags  # noqa: E402
 from backtest.romeo import arrays  # noqa: E402
 from backtest.walkforward import verdict, walk  # noqa: E402
 from engine import config as K  # noqa: E402
@@ -36,20 +35,9 @@ def ns(x):
 
 
 def mss_events(o, h, l, c):
-    """Bearish space: candle j closes below the latest confirmed swing low (each low used once).
-    Yields (j, top) with top = highest candle between that swing low and j."""
-    _, sl = swing_flags(h, l)
-    last, used = None, True
-    for j in range(5, len(c) - 1):
-        k = j - 2
-        if sl[k]:
-            last, used = k, False
-        if last is None or used or j <= last + 2:
-            continue
-        if c[j] < l[last]:
-            used = True
-            top = last + 1 + int(np.argmax(h[last + 1:j + 1]))
-            yield j, top
+    """Engine definition (engine/structure.py), without the swing-low index."""
+    for j, top, _ in S.mss_events(o, h, l, c):
+        yield j, top
 
 
 def run_part(pair: str, tf: str) -> pd.DataFrame:

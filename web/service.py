@@ -294,8 +294,18 @@ def group_stats(items: list[tuple[dict, dict]]) -> dict:
     return out
 
 
+def model_performance(store) -> dict:
+    """Watch-only H1 order-block model (spec v16): finished trades vs chance (25% at 3R)."""
+    items = []
+    for r in store.list_setups(source="live", limit=5000):
+        if r["card"].get("model"):
+            op = r["card"]["options"][0]
+            items.append((op, (r.get("status") or {}).get(op["id"])))
+    return {"logged": len(items), **group_stats(items)}
+
+
 def performance(store, source: str = "live") -> dict:
-    rows = store.list_setups(source=source, limit=5000)
+    rows = [r for r in store.list_setups(source=source, limit=5000) if not r["card"].get("model")]
     latest = {}
     for r in store.list_reviews():
         latest[r["setup_id"]] = r                     # reviews come oldest first: keep the latest

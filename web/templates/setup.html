@@ -4,19 +4,34 @@
 {% block content %}
 <section class="card">
   <div class="setup-head">
+    {% if card.model %}
+    <h1 style="font-size:28px">{{ card.pair }} {{ dir_pill(card.direction) }} <span class="pill">{{ card.model_label }}</span>
+      <span class="pill warn">watch-only model</span></h1>
+    {% else %}
     <h1 style="font-size:28px">{{ card.pair }} {{ dir_pill(card.direction) }} <span class="pill">{{ card.range_tf }} CRT</span>
       {% if card.recommended %}<span class="pill rec">matches your rules</span>{% else %}<span class="pill warn">a rule is not met</span>{% endif %}</h1>
+    {% endif %}
     <span class="muted small">Logged {{ loc(row.first_seen) }} · engine {{ row.engine }}</span>
   </div>
+  {% if card.model %}
+  <p class="note small">{{ card.model_note }}</p>
+  <div class="kv">
+    <div><span>Bias</span><b>{{ card.smc.bias }}</b></div>
+    <div><span>{{ 'Bottom' if card.direction == 'long' else 'Top' }} of the move</span><b>{{ price(card.pair, card.smc.top_price) }}</b></div>
+    <div><span>Swing {{ 'high' if card.direction == 'long' else 'low' }} broken (MSS)</span><b>{{ price(card.pair, card.smc.swing_price) }}</b></div>
+    <div><span>Order block open</span><b>{{ price(card.pair, card.smc.ob_open) }}</b></div>
+  </div>
+  {% else %}
   <div class="kv">
     <div><span>Range high</span><b>{{ price(card.pair, card.range_high) }}</b></div>
     <div><span>Range low</span><b>{{ price(card.pair, card.range_low) }}</b></div>
     <div><span>50% level</span><b>{{ price(card.pair, card.range_mid) }}</b></div>
     <div><span>Sweep extreme</span><b>{{ price(card.pair, card.sweep_extreme) }}</b></div>
   </div>
+  {% endif %}
   <div class="ichart" data-src="{{ url_for('chart_setup', sid=card.id, option=op.id if op else None) }}"></div>
   <div class="charts static-charts">
-    <figure style="margin:0"><figcaption class="small muted">{{ card.range_tf }}: range candle (amber band), sweep candle (blue band)</figcaption>{{ charts.range | safe }}</figure>
+    {% if not card.model %}<figure style="margin:0"><figcaption class="small muted">{{ card.range_tf }}: range candle (amber band), sweep candle (blue band)</figcaption>{{ charts.range | safe }}</figure>{% endif %}
     <figure style="margin:0"><figcaption class="small muted">{{ card.chart.entry_tf }} entry chart{% if op %} · showing option: {{ op.entry_type }} / {{ op.stop_type }} / {{ op.mgmt }}{% endif %}</figcaption>{{ charts.entry | safe }}</figure>
   </div>
   <details><summary>Chart in words</summary><p>{{ text }}</p></details>

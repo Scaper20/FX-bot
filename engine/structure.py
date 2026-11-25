@@ -217,3 +217,36 @@ def structure_direction(h, l, c, n: int) -> np.ndarray:
             cur, sl = -1, None
         out[j] = cur
     return out
+
+
+# ------------------------------------------------------------ fractal swings and MSS (spec v16)
+
+def swing_flags(h: np.ndarray, l: np.ndarray):
+    """5-bar fractal swings (strict). A swing at k is only known once candle k+2 has closed."""
+    n = len(h)
+    sh = np.zeros(n, bool)
+    sl = np.zeros(n, bool)
+    if n > 4:
+        m = slice(2, n - 2)
+        sh[m] = (h[2:-2] > h[1:-3]) & (h[2:-2] > h[:-4]) & (h[2:-2] > h[3:-1]) & (h[2:-2] > h[4:])
+        sl[m] = (l[2:-2] < l[1:-3]) & (l[2:-2] < l[:-4]) & (l[2:-2] < l[3:-1]) & (l[2:-2] < l[4:])
+    return sh, sl
+
+
+def mss_events(o, h, l, c, include_last: bool = False):
+    """Bearish space: candle j closes below the latest confirmed swing low (each low used once).
+    Yields (j, top, swing_low) with top = highest candle between that swing low and j.
+    include_last=True also checks the newest candle (live scanning)."""
+    _, sl = swing_flags(h, l)
+    last, used = None, True
+    end = len(c) if include_last else len(c) - 1
+    for j in range(5, end):
+        k = j - 2
+        if sl[k]:
+            last, used = k, False
+        if last is None or used or j <= last + 2:
+            continue
+        if c[j] < l[last]:
+            used = True
+            top = last + 1 + int(np.argmax(h[last + 1:j + 1]))
+            yield j, top, last

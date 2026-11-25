@@ -18,8 +18,27 @@ def _sec(t) -> int:
     return int(pd.Timestamp(t).value // 1_000_000_000)
 
 
+def _smc_levels(card: dict, op: dict | None) -> list[dict]:
+    m = card["smc"]
+    long = card["direction"] == "long"
+    out = [{"price": m["top_price"], "title": "Bottom of the move" if long else "Top of the move", "color": "#0F1B2D",
+            "dashed": True, "from": _sec(m["top_time"])},
+           {"price": m["swing_price"], "title": "Swing high broken (MSS)" if long else "Swing low broken (MSS)",
+            "color": "#2F5D9E", "dashed": True, "from": _sec(m["swing_time"])},
+           {"price": m["ob_far"], "title": "Order block far edge", "color": "#5B6577", "dashed": True,
+            "from": _sec(m["ob_time"])}]
+    if op:
+        t = _trigger_sec(op)
+        out += [{"price": op["entry"], "title": "Entry (order block open)", "color": "#D99A1E", "from": t},
+                {"price": op["stop"], "title": "Stop", "color": "#C8473B", "from": t},
+                {"price": op["target"], "title": "Target 3R", "color": "#0B7A5A", "from": t}]
+    return out
+
+
 def levels(card: dict, op: dict | None) -> list[dict]:
     """Price levels, each drawn from the moment it exists ("from"), not across the whole chart."""
+    if card.get("model"):
+        return _smc_levels(card, op)
     r0 = _sec(card["range_open"])
     out = [{"price": card["range_high"], "title": "Range high", "color": "#0F1B2D", "dashed": True, "from": r0},
            {"price": card["range_low"], "title": "Range low", "color": "#0F1B2D", "dashed": True, "from": r0},
@@ -45,6 +64,14 @@ def _trigger_sec(op: dict) -> int:
 def markers(card: dict, op: dict | None) -> list[dict]:
     """R = range candle, S = where the sweep extreme was made (the chart finds that candle on each
     timeframe inside the sweep candle's time), T = the trigger candle."""
+    if card.get("model"):
+        m = card["smc"]
+        out = [{"kind": "point", "time": _sec(m["swing_time"]), "text": "S", "color": "#2F5D9E"},
+               {"kind": "point", "time": _sec(m["top_time"]), "text": "X", "color": "#0F1B2D"},
+               {"kind": "point", "time": _sec(m["ob_time"]), "text": "O", "color": "#D99A1E"}]
+        if op:
+            out.append({"kind": "trigger", "time": _trigger_sec(op), "text": "M", "color": "#C8473B"})
+        return out
     out = [{"kind": "range", "time": _sec(card["range_open"]), "text": "R", "color": "#D99A1E"}]
     if card.get("sweep_open"):
         out.append({"kind": "sweep", "time": _sec(card["sweep_open"]),
@@ -78,7 +105,9 @@ def payload(card: dict, op: dict | None, before: dict, after: dict | None, tz_of
            "default_tf": (op or {}).get("entry_tf") or card.get("chart", {}).get("entry_tf") or "H1",
            "range_tf": card["range_tf"], "tz_offset": tz_offset, "tfs": tfs,
            "after": {tf: (after or {}).get(tf, []) for tf in tfs} if after else {},
-           "levels": levels(card, op), "markers": markers(card, op), "focus": _sec((op or card)["decision_time"]
+           "levels": levels(card, op), "markers": markers(card, op),
+           "marker_key": ("S swing that gets broken · X extreme of the move (stop side) · O order block · M structure shift (MSS) candle"
+                          if card.get("model") else "R range candle · S sweep (where the extreme was made) · T trigger candle"), "focus": _sec((op or card)["decision_time"]
                                                                                  if (op or card).get("decision_time") else card["range_open"])}
     if reveal_from:
         out["reveal_from"] = _sec(reveal_from)

@@ -32,6 +32,8 @@ def test_scan_cards_are_consistent(feed):
     assert res["ready"], "expected ready setups at this time"
     for c in res["ready"]:
         assert c["options"] and c["state"] == "ready"
+        if c.get("model"):                     # watch-only order-block model: checked in test_smc_live
+            continue
         for op in c["options"]:
             assert op["rr"] >= K.MIN_RR
             assert pd.Timestamp(op["decision_time"]) <= now
@@ -118,3 +120,30 @@ def test_twelvedata_missing_key(monkeypatch):
     monkeypatch.delenv("TWELVEDATA_API_KEY", raising=False)
     with pytest.raises(TD.FeedError, match="not set"):
         TD.fetch("GBPUSD", "M5", opener=lambda req, timeout: None)
+
+
+def test_smc_live_cards_follow_spec_v16(feed):
+    """Order-block model: D1+H4 bias, MSS on H1, entry at the OB open, stop above the top, exactly 3R before
+    spread, no 50% cancel, 3-day hold, never recommended (kept out of CRT stats)."""
+    from engine.smc_live import MODEL, scan_smc_pair
+    found = []
+    for day in pd.date_range("2023-03-01", "2023-07-20", freq="1D", tz="UTC"):
+        if day.weekday() >= 5:
+            continue
+        now = day + pd.Timedelta("15h")
+        for pair, mkt in markets(feed, now).items():
+            found += scan_smc_pair(mkt, pair, SPREADS[pair])
+        if len(found) >= 3:
+            break
+    assert found, "expected at least one order-block setup in the replay months"
+    for c in found:
+        op = c["options"][0]
+        assert c["model"] == MODEL and not c["recommended"] and not op["recommended"]
+        sgn = 1 if c["direction"] == "long" else -1
+        assert sgn * (op["target"] - op["entry"]) == pytest.approx(3 * sgn * (op["entry"] - op["stop"]), rel=1e-9)
+        assert sgn * (op["entry"] - op["stop"]) > 0 and op["entry"] == c["smc"]["ob_open"]
+        assert sgn * (c["smc"]["top_price"] - op["stop"]) > 0          # stop beyond the top of the move
+        o = op["order"]
+        assert o["hold_tf"] == "D1" and o["hold_n"] == 3 and not o["market"]
+        assert pd.Timestamp(c["smc"]["mss_time"]) < pd.Timestamp(op["decision_time"])
+        assert pd.Timestamp(c["smc"]["ob_time"]) <= pd.Timestamp(c["smc"]["top_time"])
