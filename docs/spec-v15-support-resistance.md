@@ -19,3 +19,6 @@ A level below price when it becomes active is **support**, above is **resistance
 
 ## Reported
 Trades, win rate vs chance, average R **before** and **after** spread, years positive (2022–2026). "Works" = after spread positive in at least 4 of 5 years and in total, with at least 100 trades, and win rate above chance. 4 levels × 2 trades × 3 targets = 24 rows per pair, pooled over both pairs.
+
+## Addendum (25 Nov 2026, after the main run, before this check)
+2 of 24 rows met the rule (daily-swing breakout 1R, 4-hour-swing breakout 2R), and breakouts beat bounces in every level type. Same script, unchanged, on **EUR/USD (1.0 pip, round numbers every 50 pips) and silver ($0.025, round numbers every $0.50)**. The two rows pass only if, on the new markets pooled, average R after spread > 0 and positive in at least 3 of 5 years. Also reported: whether breakouts still beat bounces before costs.
