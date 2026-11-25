@@ -1,0 +1,10 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "redirects": [
+    {
+      "source": "/:path*",
+      "destination": "https://fx-bot-vert.vercel.app/:path*",
+      "statusCode": 301
+    }
+  ]
+}
