@@ -41,3 +41,6 @@ CRT with Ore's rule (C2 swept C1 and closed inside C1's **body**), Exness candle
 - **Consistent** = at least 30 trades, average R after spread positive in at least 4 of the 5 years 2022–2026 and in total, and the final target hit at least as often as chance.
 - Each family (Model 1 alone, Model 2 alone, CRT-paired) gets the **walk-forward** (spec v7 rule: pick on past years, trade the next year blind, 2023–2026).
 - Anything that passes is **frozen and rerun on EUR/USD and silver** (never used) before it counts. About 90 rows are tested, so a few lucky "consistent" rows are expected by chance alone.
+
+## Addendum (25 Nov 2026, after the main run, before the fresh-market run)
+One row passed the consistency rule: **Model 1 (sniper), H4, entry at C3's extreme, management B, no filter** (+0.04R, 215 trades, 4 of 5 years). Frozen exactly as is and run on **EUR/USD (1.0 pip) and silver ($0.025)**. It passes only if, on the two markets pooled: average R > 0, positive in at least 3 of the 5 years 2022–2026, final target hit at least as often as chance, at least 30 trades.
