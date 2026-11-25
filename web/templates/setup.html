@@ -39,7 +39,11 @@
 
 <section class="card">
   <h2>Entry options, ranked</h2>
+  {% if card.model %}
+  <p class="muted small">One option, exactly as the model was backtested (spec v16): limit at the order block's open, stop beyond the extreme of the move + 2 spreads, target 3R, closed after 3 trading days. It has no option history here; its backtest is in the note above.</p>
+  {% else %}
   <p class="muted small">Ranked by each option's 2021–2024 average result, pulled towards the overall average when the sample is small. <b>No option has shown an edge on unseen data</b>; "chance win rate" is what a coin-flip market gives for these stop and target distances, and the spread makes break-even a little harder than that.</p>
+  {% endif %}
   <div class="tablewrap"><table class="rtable">
     <thead><tr><th>#</th><th>Option</th><th class="num">Entry</th><th class="num">Stop</th><th class="num">Target</th><th class="num">R:R</th><th class="num">Chance</th><th class="num">Break-even</th><th>History 2021–24</th><th class="num">Lots</th><th>Tracked outcome</th></tr></thead>
     <tbody>

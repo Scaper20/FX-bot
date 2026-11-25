@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 {% block title %}Strategy · CRT Scanner{% endblock %}
 {% block content %}
-<h1>Strategy (v1.3, assisted mode)</h1>
-<div class="note">The system recommends; you decide. These rules, and every variation tested since (Romeo's models, breakers, MSnR, SMT, trend), have <b>not</b> shown an edge on years or markets they weren't built on (see <a href="{{ url_for('backtest') }}">Backtest</a>). The site's job is to find setups that match your rules quickly, show their honest numbers, and measure whether your judgment adds something (<a href="{{ url_for('plan_page') }}">My test</a>).</div>
+<h1>Strategy (engine v1.4, assisted mode)</h1>
+<div class="note">The system recommends; you decide. These rules, and every variation tested since (Romeo's models, breakers, MSnR, SMT, trend, Inter Equity's liquidity models, support/resistance, the D1/H4-bias order-block model), have <b>not</b> shown an edge on years or markets they weren't built on (see <a href="{{ url_for('backtest') }}">Backtest</a>). The site's job is to find setups that match your rules quickly, show their honest numbers, and measure whether your judgment adds something (<a href="{{ url_for('plan_page') }}">My test</a>).</div>
 <section class="card">
   <h2>What counts as a setup (CRT)</h2>
   <ol>
@@ -34,5 +34,15 @@
   <h2>Shown as checklist, not as filters</h2>
   <p>Killzone, FVG and order block present, both CISD and MSS, mid-timeframe MSS, HTF MSS, MSnR level, sweep candle size and depth. None of them changed results versus chance in any test from 2021 to 2026, so they are information for your judgment, not rules.</p>
   <p class="muted small">Option history: {{ meta.get('trades', '?') }} simulated trades from {{ meta.get('setups', '?') }} setups, {{ meta.get('period', '') }}. 2025–2026 has since been tested too (your all-years decision); see Backtest.</p>
+</section>
+<section class="card">
+  <h2>Watch-only model: H1 order block · D1+H4 bias</h2>
+  <p class="small">Added at your request after spec v16. It is <b>not</b> part of your CRT rules and never counts as "matches your rules"; it has its own section on <a href="{{ url_for('performance') }}">Performance</a>. Backtest 2021–26: +0.27R a trade on GBP/USD + gold, but −0.12R on EUR/USD + silver, so it failed the fresh-market test. It's logged live so you can see how it does from here on.</p>
+  <ol>
+    <li><b>Bias:</b> D1 and H4 market structure both point the same way (direction of the last close beyond a confirmed swing high or low).</li>
+    <li><b>Market structure shift:</b> on H1, a candle closes beyond the latest swing low (sells) or swing high (buys) in that direction.</li>
+    <li><b>Entry:</b> limit order at the open of the order block (the last opposite candle at the extreme of the move that took liquidity and left an FVG). Valid for 12 H1 candles.</li>
+    <li><b>Stop:</b> beyond the extreme of the move plus 2 spreads. <b>Target:</b> 3R (before the spread, exactly as tested, so after spread a card can show a little under 1:3). Closed after 3 trading days if neither is hit. No cancel at 50%.</li>
+  </ol>
 </section>
 {% endblock %}

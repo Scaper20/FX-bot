@@ -3,7 +3,7 @@
 {% block content %}
 <section class="card hero">
   <h1>Find me a setup</h1>
-  <p class="muted">Scans GBP/USD and gold for CRT setups that match your rules, with entry options ranked by their 2021–2024 history. You make the call.</p>
+  <p class="muted">Scans GBP/USD and gold for CRT setups that match your rules, with entry options ranked by their 2021–2024 history, plus one watch-only model (H1 order block with D1+H4 bias). You make the call.</p>
   <form method="post" action="{{ url_for('scan_now') }}" class="row">
     <input type="hidden" name="csrf" value="{{ csrf_token() }}">
     <button class="btn big" type="submit">Find me a setup</button>
