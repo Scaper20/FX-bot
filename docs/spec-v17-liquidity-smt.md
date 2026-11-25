@@ -12,3 +12,6 @@ For every v14 "alone" row (model × entry × timeframe × management, all sessio
 
 ## Judged
 An SMT row counts only if: at least 30 trades, average after spread > 0 and positive in at least 4 of the 5 years 2022–2026, target hit at least as often as chance, **and** better than the same row without SMT. Walk-forward on the SMT trades (spec v7 rule). Anything that passes is run with the roles swapped (**EUR/USD with GBP/USD as partner, silver with gold as partner**), unchanged, before it counts.
+
+## Addendum (25 Nov 2026, after the main run, before the swapped-roles run)
+1 of 28 rows counted: **4-candle sniper, H4, entry at C3's extreme, management B, with SMT** (+0.165R, 71 trades, 4 of 5 years). Run unchanged with roles swapped: **EUR/USD (partner GBP/USD) and silver (partner gold)**. Passes only if, pooled: average R after spread > 0, positive in at least 3 of the 5 years 2022–2026, target hit at least as often as chance, at least 30 trades.
