@@ -3,7 +3,7 @@
     python -m backtest.chart_patterns      -> audit summary + docs/pattern_examples/*.png
 
 Audit (independent of the finder code): every key point is a real swing on its own candles; the decision candle
-closes at least 3 candles after the last swing; the stop is beyond every key point; entry, stop and target sit on
+closes at least 3 candles after the last swing; the stop is exactly 2 spreads beyond its spec anchor; entry, stop and target sit on
 the right sides. Charts: two examples per pattern (GBP/USD H1 / H4), candles in GMT+0 with the key points and the
 broken line drawn.
 """
@@ -61,9 +61,19 @@ def audit(d: pd.DataFrame, frames: dict) -> dict:
                 probs.setdefault("not a swing", []).append(r.Index)
             if dpos < max(swing_pts) + 3:
                 probs.setdefault("decided before the swing was known", []).append(r.Index)
-            ext = max(h[p] for p in pts) if short else min(l[p] for p in pts)
-            if (short and r.stop <= ext) or (not short and r.stop >= ext):
-                probs.setdefault("stop not beyond the pattern", []).append(r.Index)
+            # the stop's anchor per the spec: higher top / right shoulder / flag's high / last swing high
+            if r.pattern == "dtop":
+                anchor = [pts[0], pts[2]]
+            elif r.pattern == "hs":
+                anchor = [pts[4]]
+            elif r.pattern == "flag":
+                anchor = list(range(pts[1] + 1, dpos + 1))
+            else:
+                anchor = [pts[2]]
+            ext = max(h[p] for p in anchor) if short else min(l[p] for p in anchor)
+            sp = MARKETS[pair]["spread"]
+            if abs(abs(r.stop - ext) - 2 * sp) > 1e-6 * max(1.0, abs(ext)):
+                probs.setdefault("stop not anchor + 2 spreads", []).append(r.Index)
     rows = d.itertuples()
     for r in rows:
         if (r.side == "short" and not (r.stop > r.e > r.tgt)) or (r.side == "long" and not (r.stop < r.e < r.tgt)):
@@ -93,10 +103,11 @@ def draw(E, r, path, pair, tf):
     bots = (lambda i: ll[i]) if short else (lambda i: hh[i])
     pat = r["pattern"]
     if pat == "dtop":
-        lab = [(pts[0], tops(pts[0]), "Top 1"), (pts[2], tops(pts[2]), "Top 2"), (pts[1], bots(pts[1]), "Neckline")]
+        w1 = "Top" if short else "Bottom"
+        lab = [(pts[0], tops(pts[0]), f"{w1} 1"), (pts[2], tops(pts[2]), f"{w1} 2"), (pts[1], bots(pts[1]), "Neckline")]
         ax.hlines(bots(pts[1]), pts[0], dpos, color="#D99A1E", lw=1.5)
     elif pat == "hs":
-        lab = [(pts[0], tops(pts[0]), "LS"), (pts[2], tops(pts[2]), "Head"), (pts[4], tops(pts[4]), "RS")]
+        lab = [(pts[0], tops(pts[0]), "Left shoulder"), (pts[2], tops(pts[2]), "Head"), (pts[4], tops(pts[4]), "Right shoulder")]
         s = (bots(pts[3]) - bots(pts[1])) / (pts[3] - pts[1])
         ax.plot([pts[1], dpos], [bots(pts[1]), bots(pts[1]) + s * (dpos - pts[1])], color="#D99A1E", lw=1.5)
     elif pat == "flag":
