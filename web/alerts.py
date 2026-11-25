@@ -9,7 +9,11 @@ from html import escape
 
 import pandas as pd
 
+from engine import strategies
+
 from . import mailer
+
+SUBJECT = "Setup Scanner: "
 
 NY = "America/New_York"
 DEFAULTS = {"new": True, "outcomes": True, "digest": True, "filtered": False, "smc": True, "max_per_day": 30}
@@ -17,7 +21,14 @@ DEFAULTS = {"new": True, "outcomes": True, "digest": True, "filtered": False, "s
 
 def kind(card: dict) -> str:
     """Short name of the setup type, for emails."""
-    return card.get("model_label") or f"{card['range_tf']} CRT"
+    return strategies.name(card)
+
+
+def wanted(card: dict, p: dict) -> bool:
+    """New-setup alert switch: each strategy has its own (CRT: 'new', order block: 'smc')."""
+    if not p.get(strategies.STRATEGIES[strategies.strategy_of(card)]["alert"], True):
+        return False
+    return bool(card["recommended"] or p["filtered"])
 
 
 def prefs(settings: dict) -> dict:
@@ -34,8 +45,8 @@ def _loc(t, tz: str) -> str:
 
 def new_setup_line(card: dict, base: str, tz: str) -> tuple[str, str]:
     op = card["options"][0]
-    rule = ("watch-only model (failed the fresh-market test)" if card.get("model")
-            else "matches your rules" if card["recommended"] else "a rule is NOT met")
+    sid = strategies.strategy_of(card)
+    rule = (f"matches {strategies.STRATEGIES[sid]['rules_word']}" if card["recommended"] else "a rule is NOT met")
     text = (f"{card['pair']} {card['direction'].upper()} · {kind(card)} · {rule}\n"
             f"  Entry {_price(card['pair'], op['entry'])}  Stop {_price(card['pair'], op['stop'])}  "
             f"Target {_price(card['pair'], op['target'])}  (1:{op['rr']:.1f}, chance win rate {op['chance']:.0%})\n"
@@ -92,7 +103,7 @@ def send_scan_alert(store, settings: dict, new_cards: list[dict], events: list[d
     p = prefs(settings)
     if not to or not mailer.configured():
         return None
-    cards = [c for c in new_cards if p["new"] and (c["recommended"] or p["filtered"] or (c.get("model") and p["smc"]))]
+    cards = [c for c in new_cards if wanted(c, p)]
     evs = events if p["outcomes"] else []
     if not cards and not evs:
         return None
@@ -119,14 +130,14 @@ def send_scan_alert(store, settings: dict, new_cards: list[dict], events: list[d
         bits.append(f"{len(cards)} new setup{'s' if len(cards) > 1 else ''}")
     if evs:
         bits.append(f"{len(evs)} update{'s' if len(evs) > 1 else ''}")
-    subject = "CRT Scanner: " + ", ".join(bits)
+    subject = SUBJECT + ", ".join(bits)
     footer_t = "\n\nSetups that match your rules, with their historical results. Not advice; check your own chart. Change alerts in Settings."
     footer_h = ('<p style="color:#5B6577;font-size:12px">Setups that match your rules, with their historical results. '
                 f'Not advice; check your own chart. <a href="{base}/settings">Change alerts</a>.</p>')
     html = '<div style="font-family:Arial,sans-serif;color:#0F1B2D;max-width:600px">' + "".join(parts_h) + footer_h + "</div>"
     try:
         mailer.send(to, subject, html, "\n\n".join(parts_t) + footer_t, tags=["owner-alert"])
-        return f"alert emailed: {subject[13:]}"
+        return f"alert emailed: {subject[len(SUBJECT):]}"
     except mailer.MailError as e:
         return f"alert email failed: {e}"
 
@@ -170,7 +181,7 @@ def maybe_send_digest(store, settings: dict, now: pd.Timestamp, base: str) -> st
             + "".join(f"<p>{escape(x)}</p>" for x in lines)
             + f'<p><a href="{base}/plan">My test</a> · <a href="{base}/journal">Journal</a> · <a href="{base}/performance">Performance</a></p></div>')
     try:
-        mailer.send(to, f"CRT Scanner daily summary · {ny:%a %d %b}", html, text, tags=["owner-digest"])
+        mailer.send(to, f"Setup Scanner daily summary · {ny:%a %d %b}", html, text, tags=["owner-digest"])
         return "daily summary emailed"
     except mailer.MailError as e:
         return f"daily summary failed: {e}"

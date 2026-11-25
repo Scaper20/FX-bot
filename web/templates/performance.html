@@ -1,13 +1,14 @@
 {% extends "base.html" %}
-{% block title %}Performance · CRT Scanner{% endblock %}
-{% macro table(perf, title) %}
-<section class="card">
+{% block title %}Performance · Setup Scanner{% endblock %}
+{% macro table(perf, title, anchor='', note='') %}
+<section class="card"{% if anchor %} id="{{ anchor }}"{% endif %}>
   <h2>{{ title }}</h2>
+  {% if note %}<p class="muted small">{{ note }}</p>{% endif %}
   {% set G = perf.groups %}
   <div class="tablewrap"><table class="rtable">
     <thead><tr><th>Group</th><th class="num">Setups</th><th class="num">Finished trades</th><th class="num">Win rate</th><th class="num">Chance win rate</th><th class="num">Avg R</th><th class="num">Chance avg R</th><th class="num">Edge</th><th class="num">z</th><th class="num">Total R</th></tr></thead>
     <tbody>
-    {% for key, label in [('take','Your Takes'), ('skip','Your Skips'), ('unsure','Unsure'), ('system','All setups matching your rules'), ('not_reviewed','Not reviewed yet')] %}
+    {% for key, label in [('take','Your Takes'), ('skip','Your Skips'), ('unsure','Unsure'), ('system','All setups matching the rules'), ('not_reviewed','Not reviewed yet')] %}
       {% set s = G[key] %}
       <tr><td class="full" data-label="Group"><b>{{ label }}</b></td><td class="num" data-label="Setups">{{ s.setups }}</td><td class="num" data-label="Finished trades">{{ s.trades }}</td>
         <td class="num" data-label="Win rate">{{ pct(s.win_rate) if s.trades else '—' }}</td><td class="num" data-label="Chance win rate">{{ pct(s.chance_win_rate) if s.trades else '—' }}</td>
@@ -38,8 +39,11 @@
   <b>Edge</b> = your average minus that. <b>z</b> says how unusual the edge is: under 2 can easily be luck, and you need about 50 or more finished trades before it means much.
   The question these tables answer: <i>do your Takes do better than your Skips, and better than chance?</i>
 </div>
-{{ table(live, "Live (forward log)") }}
-{{ table(practice, "Practice (past setups reviewed blind)") }}
+{% for sid, s in strategies.items() %}
+{{ table(live[sid], "Live · " ~ s.name ~ " (" ~ s.long ~ ")", sid, "Backtest: " ~ s.evidence) }}
+{% endfor %}
+{{ table(live_all, "Live · all strategies together", "all", "Your My test counts these together.") }}
+{{ table(practice, "Practice (past CRT setups reviewed blind)") }}
 <section class="card">
   <h2>Community practice</h2>
   <p class="small">Other traders review the same past setups at <a href="{{ share_url }}">{{ share_url }}</a> (share this link; no password, just a username). Their answers are stored separately and never mixed with yours.</p>
@@ -59,15 +63,5 @@
   </table></div>
   <p class="muted small">Usernames have no password, so anyone could type someone else's name. Treat a trader's numbers as theirs only if you trust who is behind the name.</p>
   {% else %}<p class="muted">No community answers yet.</p>{% endif %}
-</section>
-<section class="card">
-  <h2>Watch-only: H1 order block · D1+H4 bias</h2>
-  <p class="muted small">Logged live the moment each setup forms (spec v16). Backtest: +0.27R a trade on GBP/USD + gold, −0.12R on EUR/USD + silver. Kept out of the CRT numbers above. Chance at 3R = 25%.</p>
-  <div class="grid three">
-    <div class="stat"><div class="muted small">Setups logged</div><div class="big">{{ model.logged }}</div></div>
-    <div class="stat"><div class="muted small">Finished trades · win rate vs chance</div><div class="big">{{ model.trades }} · {{ pct(model.win_rate) if model.trades else '—' }} vs {{ pct(model.chance_win_rate) if model.trades else '25%' }}</div></div>
-    <div class="stat"><div class="muted small">Avg R after spread · total</div><div class="big">{{ rfmt(model.avg_R) if model.trades else '—' }} · {{ rfmt(model.total_R) }}</div></div>
-  </div>
-  <p class="muted small">Under about 50 finished trades, these numbers are mostly luck.</p>
 </section>
 {% endblock %}

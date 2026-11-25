@@ -283,7 +283,7 @@ def test_live_setup_chart_has_all_timeframes_and_levels(env):
     assert anon.get(f"/api/chart/setup/{sid}").status_code == 302      # private: login needed
 
 
-def test_order_block_model_logged_and_shown_separately(env):
+def test_order_block_strategy_logged_and_shown_separately(env):
     app, store, clock = env
     c = app.test_client()
     login(c)
@@ -298,7 +298,8 @@ def test_order_block_model_logged_and_shown_separately(env):
             break
     assert sid, "expected an order-block setup to be logged"
     page = c.get(f"/setup/{sid}").get_data(as_text=True)
-    assert "H1 order block" in page and "watch-only model" in page and "Range high" not in page
+    assert "H1 order block" in page and "matches the order-block rules" in page and "Range high" not in page
+    assert "watch-only" not in page and "failed the fresh-market test" in page        # honest evidence stays shown
     data = c.get(f"/api/chart/setup/{sid}").get_json()
     titles = {lv["title"] for lv in data["levels"]}
     assert {"Entry (order block open)", "Stop", "Target 3R"} <= titles
@@ -307,6 +308,15 @@ def test_order_block_model_logged_and_shown_separately(env):
     assert ("Swing high broken (MSS)" if long else "Swing low broken (MSS)") in titles
     assert "order block" in data["marker_key"]
     perf = c.get("/performance").get_data(as_text=True)
-    assert "Watch-only: H1 order block" in perf
-    assert all(not r["card"].get("model") for r in store.list_setups(source="live")
-               if r["recommended"])                       # never mixed into the CRT recommendations
+    assert "Live · Order block" in perf and "Live · CRT" in perf and "Live · all strategies together" in perf
+    ob = service.performance(store, "live", "smc_ob")
+    crt = service.performance(store, "live", "crt")
+    both = service.performance(store, "live")
+    assert ob["rows"] >= 1 and ob["rows"] + crt["rows"] == both["rows"]       # split adds up, nothing lost
+    assert ob["groups"]["system"]["setups"] >= 1                               # now recommended
+    home = c.get("/?strategy=smc_ob").get_data(as_text=True)
+    assert "Matches the rules, still actionable · Order block" in home and "CRT armed" not in home
+    jr = c.get("/journal?strategy=crt").get_data(as_text=True)
+    assert sid not in jr and sid in c.get("/journal?strategy=smc_ob").get_data(as_text=True)
+    plan_page = c.get("/plan").get_data(as_text=True)
+    assert "By strategy" in plan_page and "Order block" in plan_page

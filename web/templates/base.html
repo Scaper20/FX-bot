@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
-<title>{% block title %}CRT Scanner{% endblock %}</title>
+<title>{% block title %}Setup Scanner{% endblock %}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=Instrument+Serif&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -15,7 +15,7 @@
 <body>
 <header class="top">
   <div class="wrap">
-    <a class="brand" href="{{ url_for('home') }}">CRT Scanner</a>
+    <a class="brand" href="{{ url_for('home') }}">Setup Scanner</a>
     {% if session.get('ok') %}
     <div class="clock" aria-label="Market sessions">
       <span class="sess {{ 'on' if clock.london }}">London {{ 'open' if clock.london else 'closed' }}</span>

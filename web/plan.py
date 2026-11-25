@@ -1,6 +1,8 @@
 """My test (docs/plan-judgment.md): does Ore's judgment add an edge, and is his risk within the plan?"""
 from __future__ import annotations
 
+from engine.strategies import STRATEGIES, strategy_of
+
 from . import service
 from .insights import _mean, _r, _z_diff, _z_vs
 
@@ -14,8 +16,9 @@ PAUSE_STREAK = 8
 GAP_WARN = -0.2
 
 
-def judgment(store, source: str) -> dict:
-    """Take results vs chance, and Takes vs Skips, for one source (live or practice)."""
+def judgment(store, source: str, strategy: str | None = None) -> dict:
+    """Take results vs chance, and Takes vs Skips, for one source (live or practice).
+    strategy=None is the pre-registered test (all strategies together); an id gives that strategy alone."""
     latest = {}
     for rv in store.list_reviews():
         latest[rv["setup_id"]] = rv
@@ -23,7 +26,7 @@ def judgment(store, source: str) -> dict:
     counts = {"take": 0, "skip": 0, "unsure": 0}
     for row in store.list_setups(source=source, limit=5000):
         rv = latest.get(row["id"])
-        if not rv:
+        if not rv or (strategy and strategy_of(row["card"]) != strategy):
             continue
         counts[rv["decision"]] = counts.get(rv["decision"], 0) + 1
         _, best_st = service._option_outcome(row, None)
@@ -107,6 +110,7 @@ def build(store, settings: dict) -> dict:
     practice = judgment(store, "practice")
     passed = live["verdict"] == "good"
     return {"live": live, "practice": practice, "real": real_trades(store),
+            "by_strategy": {k: judgment(store, "live", k) for k in STRATEGIES},
             "risk": risk_check(settings, passed), "passed": passed,
             "rules": {"first": FIRST_READ, "decision": DECISION, "before": RISK_BEFORE, "after": RISK_AFTER,
                       "max": RISK_MAX, "dd": PAUSE_DD_R, "streak": PAUSE_STREAK, "gap": GAP_WARN}}

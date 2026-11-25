@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}My test · CRT Scanner{% endblock %}
+{% block title %}My test · Setup Scanner{% endblock %}
 
 {% macro zf(z) %}{{ '%.1f' % z if z is not none else '—' }}{% endmacro %}
 {% macro vpill(v, text) %}<span style="white-space:normal" class="pill {{ v == 'good' and 'ok' or v == 'bad' and 'bad' or v == 'early' and 'info' or 'warn' }}">{{ '✓ ' if v == 'good' }}{{ '✗ ' if v == 'bad' }}{{ text }}</span>{% endmacro %}
@@ -47,9 +47,25 @@
 </section>
 
 <section class="card">
+  <h2>By strategy</h2>
+  <p class="muted small">The test above counts your live Takes from every strategy together, as written down before any result. This split shows where your edge (or lack of it) comes from. Each part is smaller, so it needs more patience before it means anything.</p>
+  <div class="tablewrap"><table class="rtable">
+    <thead><tr><th>Strategy</th><th class="num">Finished Takes</th><th class="num">Avg R</th><th class="num">Chance avg R</th><th class="num">Edge (z)</th><th class="num">Takes minus Skips</th></tr></thead>
+    <tbody>
+    {% for sid, j in d.by_strategy.items() %}
+      <tr><td class="full" data-label="Strategy"><b>{{ strategies[sid].name }}</b> <span class="small muted">{{ strategies[sid].long }}</span></td>
+        <td class="num" data-label="Finished Takes">{{ j.n }}</td><td class="num" data-label="Avg R">{{ rfmt(j.avg_R) }}</td>
+        <td class="num" data-label="Chance avg R">{{ rfmt(j.chance_R) }}</td><td class="num" data-label="Edge (z)">{{ rfmt(j.edge) }} ({{ zf(j.z) }})</td>
+        <td class="num" data-label="Takes minus Skips">{{ rfmt(j.selection) }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</section>
+
+<section class="card">
   <h2>Practice (supporting only)</h2>
   <p>{{ vpill(d.practice.verdict, d.practice.verdict_text) }}</p>
-  <p class="muted small">The same measures on the historical practice charts. They're faster to collect, but you may half-remember those markets, so practice never decides on its own.</p>
+  <p class="muted small">The same measures on the historical practice charts (CRT setups only for now). They're faster to collect, but you may half-remember those markets, so practice never decides on its own.</p>
   {{ judgment_table(d.practice) }}
   <p class="small"><a href="{{ url_for('practice') }}">Continue practice</a></p>
 </section>

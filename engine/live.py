@@ -19,7 +19,7 @@ from . import config as K
 from .calendar import next_closes
 from .setups import Market, find_orders, track_order
 
-ENGINE_VERSION = "v1.4"   # v1.4: C2 must close inside C1's body (Ore, 23 Nov 2026)
+ENGINE_VERSION = "v1.5"   # v1.4: C2 closes inside C1's body; v1.5: order-block strategy is a full strategy (25 Nov 2026)
 STATS_FILE = Path(__file__).resolve().parent / "data" / "pattern_stats.json"
 MGMTS = ("M1_T1", "M1_T2", "M1_T3", "M2_T2", "M2_T3")
 LIVE_STOPS = ("S1p", "S1a", "S2")
@@ -215,7 +215,7 @@ def scan_pair(mkt: Market, pair: str, spread: float) -> list[dict]:
 def _new_card(sid, pair, range_tf, R0, i, k, mirrored, info) -> dict:
     sgn = -1 if mirrored else 1
     return {
-        "id": sid, "pair": pair, "range_tf": range_tf, "k": k,
+        "id": sid, "strategy": "crt", "pair": pair, "range_tf": range_tf, "k": k,
         "direction": "long" if mirrored else "short",
         "range_open": ts(R0.t_open[i]), "range_close": ts(R0.t_close[i]),
         "range_high": float(R0.h[i]), "range_low": float(R0.l[i]), "range_mid": float((R0.h[i] + R0.l[i]) / 2),
@@ -347,7 +347,7 @@ def scan(markets: dict[str, Market], spreads: dict[str, float]) -> dict:
         for c in scan_pair(mkt, pair, spreads[pair]):
             (ready if c["state"] == "ready" else armed).append(c)
         watch += watch_pair(mkt, pair)
-        ready += scan_smc_pair(mkt, pair, spreads[pair])      # watch-only H1 order-block model (spec v16)
+        ready += scan_smc_pair(mkt, pair, spreads[pair])      # order-block strategy (spec v16)
 
     def card_key(c):
         b = c["options"][0] if c["options"] else None

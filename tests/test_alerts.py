@@ -71,7 +71,7 @@ def test_scan_alerts_updates_and_digest(env, box):
             scan(app, store, str(t.tz_localize(None)))
     updates = [e for e in box[n0:] if "update" in e["subject"]]
     assert updates, "expected trade update emails as logged setups resolved"
-    assert all(e["subject"].startswith("CRT Scanner:") for e in box)
+    assert all(e["subject"].startswith("Setup Scanner:") for e in box)
     # daily summary: once, after 17:00 New York
     before = len(box)
     day = (t0 + pd.Timedelta(days=14)).normalize()
@@ -89,3 +89,16 @@ def test_daily_cap(env, box):
     for t in ("2023-06-07 10:15", "2023-06-07 14:00", "2023-06-08 10:00", "2023-06-09 12:00", "2023-06-12 10:00"):
         scan(app, store, t)
     assert len([e for e in box if "daily summary" not in e["subject"]]) <= 1
+
+
+def test_each_strategy_has_its_own_new_setup_switch():
+    crt = {"recommended": True, "strategy": "crt", "range_tf": "H4"}
+    ob = {"recommended": True, "strategy": "smc_ob", "model": "smc_h1_ob"}
+    old_ob = {"recommended": False, "model": "smc_h1_ob"}             # logged before it became a strategy
+    p = alerts.prefs({})
+    assert alerts.wanted(crt, p) and alerts.wanted(ob, p) and not alerts.wanted(old_ob, p)
+    p = alerts.prefs({"alerts": {"smc": False}})
+    assert alerts.wanted(crt, p) and not alerts.wanted(ob, p)
+    p = alerts.prefs({"alerts": {"new": False}})
+    assert not alerts.wanted(crt, p) and alerts.wanted(ob, p)
+    assert alerts.kind(ob) == "H1 order block · D1+H4 bias" and alerts.kind(crt) == "H4 CRT"

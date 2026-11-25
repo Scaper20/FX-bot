@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% from "_macros.html" import dir_pill, status_pill with context %}
-{% block title %}Journal · CRT Scanner{% endblock %}
+{% block title %}Journal · Setup Scanner{% endblock %}
 {% block content %}
 <h1>Journal</h1>
 <p class="muted">Every setup the scanner showed, logged the moment it was first shown, before anyone knew the outcome. Outcomes are filled in automatically from later candles.</p>
@@ -10,6 +10,9 @@
     <option value="live" {{ 'selected' if source == 'live' }}>Live</option>
     <option value="practice" {{ 'selected' if source == 'practice' }}>Practice</option>
   </select>
+  <label class="sr" for="strategy">Strategy</label>
+  <select id="strategy" name="strategy" style="width:auto"><option value="">All strategies</option>
+    {% for sid, s in strategies.items() %}<option value="{{ sid }}" {{ 'selected' if strat == sid }}>{{ s.name }}</option>{% endfor %}</select>
   <label class="sr" for="pair">Pair</label>
   <select id="pair" name="pair" style="width:auto"><option value="">Both pairs</option>
     <option {{ 'selected' if pair == 'GBPUSD' }}>GBPUSD</option><option {{ 'selected' if pair == 'XAUUSD' }}>XAUUSD</option></select>
@@ -29,7 +32,7 @@
   {% for it in items %}{% set r = it.row %}
   <tr>
     <td class="small" data-label="First seen">{{ loc(r.first_seen if r.source == 'live' else r.decision_time) }}</td>
-    <td data-label="Setup"><a href="{{ url_for('setup', sid=r.id) }}">{{ r.pair }}</a> {{ dir_pill(r.direction) }} <span class="small">{{ r.range_tf }}</span></td>
+    <td data-label="Setup"><a href="{{ url_for('setup', sid=r.id) }}">{{ r.pair }}</a> {{ dir_pill(r.direction) }} <span class="small">{{ strategies[it.strategy].name }}{{ ' ' ~ r.range_tf if it.strategy == 'crt' }}</span></td>
     <td data-label="Rules">{% if r.recommended %}<span class="pill rec">match</span>{% else %}<span class="pill warn">filtered</span>{% endif %}</td>
     <td data-label="Your call">{% if it.review %}<span class="pill {{ 'ok' if it.review.decision == 'take' else 'bad' if it.review.decision == 'skip' else 'warn' }}">{{ it.review.decision }}</span>{% else %}<a href="{{ url_for('setup', sid=r.id) }}">review</a>{% endif %}</td>
     <td class="small" data-label="Option scored">{{ it.op.id if it.op else '—' }}</td>
@@ -37,7 +40,7 @@
     <td data-label="Outcome">{{ status_pill(it.st) }}</td>
     <td class="num" data-label="Your R">{{ rfmt(it.review.actual_r) if it.review and it.review.actual_r is not none else "" }}</td>
   </tr>
-  {% else %}<tr><td colspan="8" class="empty muted">Nothing logged yet{{ ' for this filter' if decision or pair }}.</td></tr>{% endfor %}
+  {% else %}<tr><td colspan="8" class="empty muted">Nothing logged yet{{ ' for this filter' if decision or pair or strat }}.</td></tr>{% endfor %}
   </tbody>
 </table>
 </div>

@@ -34,9 +34,9 @@
 <article class="card">
   <div class="setup-head">
     <div class="setup-title">{{ card.pair }} {{ dir_pill(card.direction) }}
-      {% if card.model %}<span class="pill">{{ card.model_label }}</span> <span class="pill warn">watch-only model</span>
-      {% else %}<span class="pill">{{ card.range_tf }} range</span>
-      {% if card.recommended %}<span class="pill rec">matches your rules</span>{% else %}<span class="pill warn">a rule is not met</span>{% endif %}{% endif %}</div>
+      {% set sid = strategy_of(card) %}<span class="pill strat">{{ strategies[sid].name }}</span>
+      {% if sid == 'crt' %}<span class="pill">{{ card.range_tf }} range</span>{% else %}<span class="pill">{{ strategies[sid].long }}</span>{% endif %}
+      {% if card.recommended %}<span class="pill rec">matches {{ strategies[sid].rules_word }}</span>{% else %}<span class="pill warn">a rule is not met</span>{% endif %}</div>
     <div class="muted small">first seen {{ loc(row.first_seen) }} · trigger {{ loc(op.decision_time) }}</div>
   </div>
   <p class="small" style="margin:6px 0 0">Best-ranked option: {{ option_line(card, op) }}</p>
@@ -50,7 +50,8 @@
     <div><span>Lot size ({{ settings.risk_pct }}% risk)</span><b>{{ '%.2f' % lot.lots if not lot.too_small else 'below 0.01' }}</b></div>
     <div><span>Spread / risk</span><b>{{ pct(op.cost_share, 1) }}</b></div>
   </div>
-  <p class="small" style="margin:4px 0">History of this option (2021–2024): {{ history(op.stats) }}</p>
+  {% if strategy_of(card) == 'crt' %}<p class="small" style="margin:4px 0">History of this option (2021–2024): {{ history(op.stats) }}</p>
+  {% else %}<p class="small" style="margin:4px 0">Backtest of this strategy on {{ card.pair }}: {{ history(op.stats) }}. {{ strategies[strategy_of(card)].evidence }}</p>{% endif %}
   {% if item.actionable %}<p class="small" style="margin:4px 0"><span class="pill ok">{{ item.actionable | length }} option(s) you can still act on</span></p>{% endif %}
   <div class="row" style="margin-top:8px">
     <a class="btn" href="{{ url_for('setup', sid=card.id) }}">Open, chart and review</a>

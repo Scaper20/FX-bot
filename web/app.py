@@ -20,6 +20,7 @@ from engine import config as K
 from engine.feeds.twelvedata import CALLS_PER_SCAN, FeedError, TwelveDataFeed, fetch
 from engine.live import ENGINE_VERSION, TRIGGER_LABEL, load_stats
 from engine.sessions import LONDON, NEW_YORK
+from engine.strategies import STRATEGIES, strategy_of
 
 from . import chartdata, charts, community, insights, mailer, plan, reminders, service
 from .store import StoreError, from_env, merged_settings
@@ -110,7 +111,7 @@ def create_app(store=None, feed=None, now_fn=None) -> Flask:
             return "—" if missing(x) else f"{x:+.2f}R"
 
         return dict(loc=loc, price=price, pct=pct, rfmt=rfmt, csrf_token=csrf_token, settings=st,
-                    labels=service.LABELS, reasons=service.REASONS, trigger_label=TRIGGER_LABEL,
+                    labels=service.LABELS, reasons=service.REASONS, strategies=STRATEGIES, strategy_of=strategy_of, trigger_label=TRIGGER_LABEL,
                     engine_version=ENGINE_VERSION, clock=session_clock(now(), tz), nav=request.endpoint,
                     lot_size=lambda pair, e, s: service.lot_size(st, pair, e, s), dev=app.config["DEV"])
 
@@ -141,13 +142,17 @@ def create_app(store=None, feed=None, now_fn=None) -> Flask:
     def home():
         try:
             data = service.dashboard(store(), now())
+            strat = request.args.get("strategy") if request.args.get("strategy") in STRATEGIES else None
+            if strat:
+                for key in ("cards", "other", "in_play"):
+                    data[key] = [x for x in data[key] if x["strategy"] == strat]
             todo = service.unreviewed(store())
             credits = store().credits_today()
             scans = store().recent_scans(1)
         except StoreError as e:
             return render_template("error.html", message=str(e)), 503
         return render_template("home.html", d=data, todo=todo, credits=credits, calls=CALLS_PER_SCAN,
-                               last_any=scans[0] if scans else None)
+                               last_any=scans[0] if scans else None, strat=strat)
 
     @app.route("/scan", methods=["POST"])
     @login_required
@@ -222,6 +227,9 @@ def create_app(store=None, feed=None, now_fn=None) -> Flask:
         pair = request.args.get("pair")
         if pair:
             rows = [r for r in rows if r["pair"] == pair]
+        strat = request.args.get("strategy") if request.args.get("strategy") in STRATEGIES else None
+        if strat:
+            rows = [r for r in rows if strategy_of(r["card"]) == strat]
         latest = {}
         for r in store().list_reviews():
             latest[r["setup_id"]] = r
@@ -234,8 +242,8 @@ def create_app(store=None, feed=None, now_fn=None) -> Flask:
             if dec in ("take", "skip", "unsure") and (not rv or rv["decision"] != dec):
                 continue
             op, st = service._option_outcome(r, rv.get("option_id") if rv and rv["decision"] == "take" else None)
-            items.append({"row": r, "review": rv, "op": op, "st": st})
-        return render_template("journal.html", items=items, source=src, pair=pair, decision=dec)
+            items.append({"row": r, "review": rv, "op": op, "st": st, "strategy": strategy_of(r["card"])})
+        return render_template("journal.html", items=items, source=src, pair=pair, decision=dec, strat=strat)
 
     @app.route("/journal.csv")
     @login_required
@@ -246,28 +254,30 @@ def create_app(store=None, feed=None, now_fn=None) -> Flask:
             latest[r["setup_id"]] = r
         buf = io.StringIO()
         w = csv.writer(buf)
-        w.writerow(["setup_id", "source", "pair", "direction", "range_tf", "range_open", "first_seen",
+        w.writerow(["setup_id", "strategy", "source", "pair", "direction", "range_tf", "range_open", "first_seen",
                     "recommended", "decision", "option_id", "reasons", "notes", "confidence", "entry", "stop",
                     "target", "rr", "chance", "status", "outcome", "R", "actual_entry", "actual_exit", "actual_R"])
         for r in rows:
             rv = latest.get(r["id"]) or {}
             op, st = service._option_outcome(r, rv.get("option_id") if rv.get("decision") == "take" else None)
             op, st = op or {}, st or {}
-            w.writerow([r["id"], r["source"], r["pair"], r["direction"], r["range_tf"], r["range_open"],
+            w.writerow([r["id"], strategy_of(r["card"]), r["source"], r["pair"], r["direction"], r["range_tf"], r["range_open"],
                         r.get("first_seen"), r.get("recommended"), rv.get("decision", ""), op.get("id", ""),
                         ";".join(rv.get("reasons") or []), rv.get("notes", ""), rv.get("confidence", ""),
                         op.get("entry"), op.get("stop"), op.get("target"), op.get("rr"), op.get("chance"),
                         st.get("status"), st.get("state"), st.get("R"), rv.get("actual_entry"),
                         rv.get("actual_exit"), rv.get("actual_r")])
         return Response(buf.getvalue(), mimetype="text/csv",
-                        headers={"Content-Disposition": "attachment; filename=crt-journal.csv"})
+                        headers={"Content-Disposition": "attachment; filename=setup-journal.csv"})
 
     @app.route("/performance")
     @login_required
     def performance():
-        return render_template("performance.html", live=service.performance(store(), "live"),
-                               model=service.model_performance(store()),
-                               practice=service.performance(store(), "practice"),
+        st = store()
+        return render_template("performance.html",
+                               live={k: service.performance(st, "live", k) for k in STRATEGIES},
+                               live_all=service.performance(st, "live"),
+                               practice=service.performance(st, "practice"),
                                community=community.all_stats(store()),
                                share_url=url_for("p_start", _external=True))
 

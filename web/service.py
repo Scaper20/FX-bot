@@ -14,6 +14,7 @@ from engine.feeds.twelvedata import CALLS_PER_SCAN, FeedError
 from engine.live import (ENGINE_VERSION, ENTRY_LABEL, MGMT_LABEL, STOP_LABEL, all_tf_candles, scan,
                          track_card_options)
 from engine.setups import Market
+from engine.strategies import strategy_of
 
 from . import alerts
 
@@ -241,7 +242,7 @@ def dashboard(store, now: pd.Timestamp | None = None) -> dict:
         if not row:
             continue
         item = {"row": row, "card": row["card"], "actionable": s["actionable"], "in_play": s["in_play"],
-                "reviews": store.list_reviews(row["id"])}
+                "reviews": store.list_reviews(row["id"]), "strategy": strategy_of(row["card"])}
         if s["actionable"]:
             (out["cards"] if s["recommended"] else out["other"]).append(item)
         elif s["in_play"]:
@@ -294,18 +295,10 @@ def group_stats(items: list[tuple[dict, dict]]) -> dict:
     return out
 
 
-def model_performance(store) -> dict:
-    """Watch-only H1 order-block model (spec v16): finished trades vs chance (25% at 3R)."""
-    items = []
-    for r in store.list_setups(source="live", limit=5000):
-        if r["card"].get("model"):
-            op = r["card"]["options"][0]
-            items.append((op, (r.get("status") or {}).get(op["id"])))
-    return {"logged": len(items), **group_stats(items)}
-
-
-def performance(store, source: str = "live") -> dict:
-    rows = [r for r in store.list_setups(source=source, limit=5000) if not r["card"].get("model")]
+def performance(store, source: str = "live", strategy: str | None = None) -> dict:
+    """Takes / Skips / system vs chance. strategy=None mixes all strategies; give an id to split them."""
+    rows = [r for r in store.list_setups(source=source, limit=5000)
+            if strategy is None or strategy_of(r["card"]) == strategy]
     latest = {}
     for r in store.list_reviews():
         latest[r["setup_id"]] = r                     # reviews come oldest first: keep the latest

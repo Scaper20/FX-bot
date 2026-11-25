@@ -3,7 +3,7 @@
 {% block content %}
 <section class="card hero">
   <h1>Find me a setup</h1>
-  <p class="muted">Scans GBP/USD and gold for CRT setups that match your rules, with entry options ranked by their 2021–2024 history, plus one watch-only model (H1 order block with D1+H4 bias). You make the call.</p>
+  <p class="muted">Scans GBP/USD and gold with {{ strategies | length }} strategies: {% for sid, s in strategies.items() %}<b>{{ s.name }}</b> ({{ s.long }}){{ ' and ' if loop.revindex == 2 else ', ' if not loop.last }}{% endfor %}. Each setup shows its levels, chart and the strategy's history. You make the call.</p>
   <form method="post" action="{{ url_for('scan_now') }}" class="row">
     <input type="hidden" name="csrf" value="{{ csrf_token() }}">
     <button class="btn big" type="submit">Find me a setup</button>
@@ -21,22 +21,28 @@
   <a href="{{ url_for('setup', sid=todo[0].id) }}">Review the latest</a> · <a href="{{ url_for('journal', decision='none') }}">see all</a></div>
 {% endif %}
 
-<h2 style="margin-top:22px">Matches your rules, still actionable</h2>
+<nav class="row" aria-label="Strategy filter" style="margin-top:18px;gap:6px">
+  <a class="btn small {{ '' if not strat else 'ghost' }}" href="{{ url_for('home') }}">All strategies</a>
+  {% for sid, s in strategies.items() %}<a class="btn small {{ '' if strat == sid else 'ghost' }}" href="{{ url_for('home', strategy=sid) }}">{{ s.name }}</a>{% endfor %}
+</nav>
+
+<h2 style="margin-top:14px">Matches the rules, still actionable{{ ' · ' ~ strategies[strat].name if strat }}</h2>
 {% for item in d.cards %}{{ summary_card(item) }}{% else %}
 <div class="card empty">
   <h2>Nothing qualifies right now</h2>
-  <p class="muted">No CRT that meets your rules has an entry you can still take. That's a normal, honest answer: the market doesn't owe us a setup. Check the armed list below, or come back after the next scan.</p>
+  <p class="muted">No {{ strategies[strat].name if strat else 'setup from any strategy' }} that meets its rules has an entry you can still take. That's a normal, honest answer: the market doesn't owe us a setup. Check the armed list below, or come back after the next scan.</p>
 </div>
 {% endfor %}
 
 {% if d.other %}
 <details class="card flat">
-  <summary>{{ d.other | length }} actionable CRT(s) filtered out by your rules (session or direction)</summary>
+  <summary>{{ d.other | length }} actionable setup(s) filtered out by the rules (session or direction)</summary>
   {% for item in d.other %}{{ summary_card(item) }}{% endfor %}
 </details>
 {% endif %}
 
-<h2 style="margin-top:22px">Armed: waiting for the entry trigger</h2>
+{% if strat != 'smc_ob' %}
+<h2 style="margin-top:22px">CRT armed: waiting for the entry trigger</h2>
 {% if d.armed %}
 <ul class="card list">
 {% for a in d.armed %}
@@ -47,7 +53,7 @@
 </ul>
 {% else %}<p class="muted">None right now.</p>{% endif %}
 
-<h2 style="margin-top:22px">Watch: sweeping right now</h2>
+<h2 style="margin-top:22px">CRT watch: sweeping right now</h2>
 {% if d.watch %}
 <ul class="card list">
 {% for w in d.watch %}
@@ -61,6 +67,7 @@
 </ul>
 <p class="muted small">A CRT only forms if the candle closes back inside the range candle's <b>body</b> (between its open and close). Nothing to do yet; this is a heads-up.</p>
 {% else %}<p class="muted">Nothing sweeping a previous candle right now.</p>{% endif %}
+{% endif %}
 
 {% if d.in_play %}
 <details class="card flat">
