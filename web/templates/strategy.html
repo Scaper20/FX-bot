@@ -51,6 +51,7 @@
     <li><b>Entry:</b> limit order at the open of the order block (the last opposite candle at the extreme of the move that took liquidity and left an FVG). Valid for 12 H1 candles.</li>
     <li><b>Stop:</b> beyond the extreme of the move plus 2 spreads. <b>Target:</b> 3R (before the spread, exactly as tested, so after spread a card can show a little under 1:3). Closed after 3 trading days if neither is hit. No cancel at 50%.</li>
   </ol>
+  <p class="small"><b>Tracking on Find a setup:</b> for each pair the home page shows which step the strategy is on: step 1, D1 and H4 bias (agree or not); step 2, the H1 swing level an MSS has to close beyond (with distance, and a warning if price is past it before the candle closes); step 3, the setup card with its limit order.</p>
   <p class="muted small">Session is shown as information only: the backtest didn't need it. The CRT session and direction rules don't apply to this strategy.</p>
 </section>
 {% endblock %}

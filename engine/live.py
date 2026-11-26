@@ -338,16 +338,19 @@ def watch_pair(mkt: Market, pair: str) -> list[dict]:
 
 
 def scan(markets: dict[str, Market], spreads: dict[str, float]) -> dict:
-    """Scan all pairs. Returns {'ready': [...], 'armed': [...], 'watch': [...]} with ready cards
+    """Scan all pairs. Returns {'ready', 'armed', 'watch', 'smc_watch'} with ready cards
     ranked: recommended first, then by the best option's ranking score."""
-    from .smc_live import scan_smc_pair
+    from .smc_live import scan_smc_pair, watch_smc_pair
 
-    ready, armed, watch = [], [], []
+    ready, armed, watch, smc_watch = [], [], [], []
     for pair, mkt in markets.items():
         for c in scan_pair(mkt, pair, spreads[pair]):
             (ready if c["state"] == "ready" else armed).append(c)
         watch += watch_pair(mkt, pair)
         ready += scan_smc_pair(mkt, pair, spreads[pair])      # order-block strategy (spec v16)
+        w = watch_smc_pair(mkt, pair)
+        if w:
+            smc_watch.append(w)
 
     def card_key(c):
         b = c["options"][0] if c["options"] else None
@@ -355,7 +358,7 @@ def scan(markets: dict[str, Market], spreads: dict[str, float]) -> dict:
         return (c["recommended"], sc)
     ready.sort(key=card_key, reverse=True)
     armed.sort(key=lambda c: c["window_end"] or "")
-    return {"ready": ready, "armed": armed, "watch": watch}
+    return {"ready": ready, "armed": armed, "watch": watch, "smc_watch": smc_watch}
 
 
 def track_card_options(mkt: Market, card: dict, spread: float) -> dict:

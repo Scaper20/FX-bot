@@ -209,7 +209,7 @@ def run_scan(store, feed, now: pd.Timestamp | None = None, trigger: str = "manua
                message="; ".join(errors + notes) if errors else "; ".join([f"{len(new_ids)} new setup(s) logged"] + notes),
                finished_at=pd.Timestamp.now(tz="UTC").isoformat(),
                result={"now": now.isoformat(), "ready": ready_summary, "armed": [light(c) for c in res["armed"]],
-                       "watch": res["watch"], "errors": errors, "new": new_ids, "tracked": tracked})
+                       "watch": res["watch"], "smc_watch": res.get("smc_watch", []), "errors": errors, "new": new_ids, "tracked": tracked})
     store.add_scan(row)
     try:
         store.prune_scans(14)
@@ -233,7 +233,7 @@ def _unknown_if_uncovered(st: dict, mkt: Market, card: dict) -> dict:
 def dashboard(store, now: pd.Timestamp | None = None) -> dict:
     now = now or pd.Timestamp.now(tz="UTC")
     last = store.last_scan()
-    out = {"last": last, "cards": [], "other": [], "in_play": [], "armed": [], "watch": [], "now": now}
+    out = {"last": last, "cards": [], "other": [], "in_play": [], "armed": [], "watch": [], "smc_watch": [], "now": now}
     if not last or not last.get("result"):
         return out
     res = last["result"]
@@ -249,6 +249,7 @@ def dashboard(store, now: pd.Timestamp | None = None) -> dict:
             out["in_play"].append(item)
     out["armed"] = res.get("armed", [])
     out["watch"] = res.get("watch", [])
+    out["smc_watch"] = res.get("smc_watch", [])
     return out
 
 

@@ -128,3 +128,51 @@ def scan_smc_pair(mkt: Market, pair: str, spread: float) -> list[dict]:
             }
             out.append(card)
     return out
+
+
+def _pending_swing(h, l, c):
+    """Same walk as structure.mss_events (bearish space) up to the newest closed candle: the swing low an MSS
+    would break next (None if the latest one is already used), and the last MSS candle."""
+    _, sl = S.swing_flags(h, l)
+    last, used, last_mss = None, True, None
+    for j in range(5, len(c)):
+        k = j - 2
+        if sl[k]:
+            last, used = k, False
+        if last is None or used or j <= last + 2:
+            continue
+        if c[j] < l[last]:
+            used, last_mss = True, j
+    return (None if used else last), last_mss
+
+
+def watch_smc_pair(mkt: Market, pair: str) -> dict | None:
+    """What the order-block strategy is waiting for on this pair right now (heads-up only, never a setup)."""
+    H1, M5 = mkt.frames["H1"], mkt.frames["M5"]
+    if len(H1) < 60 or M5.empty:
+        return None
+    now_ns = int(pd.DatetimeIndex(H1["close_time_utc"]).as_unit("ns").asi8[-1])
+    price = float(M5["close"].iloc[-1])
+    forming = M5[M5.index.as_unit("ns").asi8 >= now_ns]
+    b_d1, b_h4 = _bias(mkt, "D1", now_ns), _bias(mkt, "H4", now_ns)
+    word = {1: "bullish", -1: "bearish", 0: "no clear structure"}
+    out = {"pair": pair, "price": price, "bias_d1": word[b_d1], "bias_h4": word[b_h4],
+           "aligned": bool(b_d1 == b_h4 != 0), "direction": None, "stage": "bias",
+           "closes_at": _ts(next_closes("H1", now_ns, 1)[0])}
+    if not out["aligned"]:
+        return out
+    mir = b_d1 == 1                                   # buys: mirrored space
+    sg = -1.0 if mir else 1.0
+    V = mkt.view[("H1", mir)]
+    swing, last_mss = _pending_swing(V.h, V.l, V.c)
+    out["direction"] = "long" if mir else "short"
+    if last_mss is not None:
+        out["last_mss"] = _ts(V.t_open[last_mss])
+    if swing is None:
+        out["stage"] = "next_swing"                   # latest swing already broken: wait for a new one
+        return out
+    level = float(sg * V.l[swing])
+    beyond_now = bool(len(forming)) and (price > level if mir else price < level)
+    out.update(stage="mss", level=level, swing_time=_ts(V.t_open[swing]), beyond_now=beyond_now,
+               distance=abs(price - level))
+    return out

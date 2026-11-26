@@ -316,6 +316,8 @@ def test_order_block_strategy_logged_and_shown_separately(env):
     assert ob["groups"]["system"]["setups"] >= 1                               # now recommended
     home = c.get("/?strategy=smc_ob").get_data(as_text=True)
     assert "Matches the rules, still actionable · Order block" in home and "CRT armed" not in home
+    assert "Order block: what it's waiting for" in home and "of 3:" in home
+    assert "Order block: what it" not in c.get("/?strategy=crt").get_data(as_text=True)
     jr = c.get("/journal?strategy=crt").get_data(as_text=True)
     assert sid not in jr and sid in c.get("/journal?strategy=smc_ob").get_data(as_text=True)
     plan_page = c.get("/plan").get_data(as_text=True)

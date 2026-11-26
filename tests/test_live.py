@@ -149,3 +149,35 @@ def test_smc_live_cards_follow_spec_v16(feed):
         assert o["hold_tf"] == "D1" and o["hold_n"] == 3 and not o["market"]
         assert pd.Timestamp(c["smc"]["mss_time"]) < pd.Timestamp(op["decision_time"])
         assert pd.Timestamp(c["smc"]["ob_time"]) <= pd.Timestamp(c["smc"]["top_time"])
+
+
+def test_smc_watch_level_is_the_one_the_strategy_breaks(feed):
+    """The heads-up shows the H1 swing an MSS would break next. When the next H1 candle closes past it, the
+    strategy's own MSS detection (structure.mss_events) must fire on that same swing."""
+    from engine import structure as S
+    from engine.smc_live import watch_smc_pair
+    stages, checked = set(), 0
+    for t in pd.date_range("2023-03-06 08:00", "2023-05-26 16:00", freq="7h", tz="UTC"):
+        if t.weekday() >= 5:
+            continue
+        for pair, mkt in markets(feed, t).items():
+            w = watch_smc_pair(mkt, pair)
+            assert w and w["pair"] == pair and w["stage"] in ("bias", "next_swing", "mss")
+            stages.add(w["stage"])
+            assert w["aligned"] == (w["direction"] is not None)
+            if w["stage"] != "mss":
+                continue
+            assert (w["direction"] == "long") == (w["bias_d1"] == "bullish") and w["bias_d1"] == w["bias_h4"]
+            nxt = Market.from_frames(feed.frames(pair, t + pd.Timedelta("1h")), t + pd.Timedelta("1h"))
+            mir = w["direction"] == "long"
+            V = nxt.view[("H1", mir)]
+            sg = -1.0 if mir else 1.0
+            new_candle = int(V.t_open[-1]) > int(mkt.view[("H1", mir)].t_open[-1])     # feed window slides
+            closed_past = new_candle and V.c[-1] < sg * w["level"]
+            fired = [ev for ev in S.mss_events(V.o, V.h, V.l, V.c, include_last=True) if ev[0] == len(V.c) - 1]
+            assert bool(fired) == closed_past
+            if fired:
+                assert pd.Timestamp(int(V.t_open[fired[0][2]]), tz="UTC") == pd.Timestamp(w["swing_time"])
+                checked += 1
+    assert {"bias", "mss"} <= stages
+    assert checked >= 1, "expected at least one MSS right after a heads-up in the replay"
