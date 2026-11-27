@@ -15,7 +15,7 @@ sys.path.insert(0, str(ROOT))
 from backtest.ob_v21 import ohlc  # noqa: E402
 from backtest.ore_v24 import OUT  # noqa: E402
 from backtest.patterns import MARKETS  # noqa: E402
-from backtest.smc_draw import BLUE, CORAL, GREEN, draw, structure_layers  # noqa: E402
+from backtest.smc_draw import CORAL, GREEN, draw, structure_layers  # noqa: E402
 from engine.candles import clean, load_m1_csv, resample  # noqa: E402
 from engine.smc_structure import external_structure  # noqa: E402
 
