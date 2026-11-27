@@ -22,7 +22,7 @@ from engine.live import ENGINE_VERSION, TRIGGER_LABEL, load_stats
 from engine.sessions import LONDON, NEW_YORK
 from engine.strategies import STRATEGIES, strategy_of
 
-from . import chartdata, charts, community, insights, mailer, plan, reminders, service
+from . import chartdata, charts, community, insights, mailer, plan, reminders, service, zones
 from .store import StoreError, from_env, merged_settings
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -321,6 +321,51 @@ def create_app(store=None, feed=None, now_fn=None) -> Flask:
         return render_template("practice_result.html", item=item, card=card, op=op, charts=ch, reviews=rv,
                                status=item["outcome"], prog=service.practice_progress(store()),
                                chart_src=url_for("chart_practice", pid=pid, option=op["id"] if op else None))
+
+    # ------------------------------------------------------------ zone trainer
+    @app.route("/train")
+    @login_required
+    def train():
+        z = zones.next_item(store())
+        if not z:
+            return redirect(url_for("train_stats"))
+        return redirect(url_for("train_item", zid=z["id"]))
+
+    @app.route("/train/<zid>", methods=["GET", "POST"])
+    @login_required
+    def train_item(zid):
+        z = zones.item(zid)
+        if not z:
+            abort(404)
+        if request.method == "POST":
+            check_csrf()
+            label = request.form.get("label")
+            if label not in zones.LABELS:
+                abort(400)
+            tags = [t for t in request.form.getlist("tags") if t in zones.TAG_LABEL]
+            store().add_zone_label({"item_id": zid, "label": label, "tags": tags,
+                                    "notes": (request.form.get("notes") or "")[:1000]})
+            return redirect(url_for("train_result", zid=zid))
+        if zid in zones.labels_by_item(store()) and not request.args.get("again"):
+            return redirect(url_for("train_result", zid=zid))
+        return render_template("train.html", z=z, svg=zones.chart(z, reveal=False), prog=zones.progress(store()),
+                               kinds=zones.KINDS, labels=zones.LABELS, tags=zones.TAGS)
+
+    @app.route("/train/<zid>/result")
+    @login_required
+    def train_result(zid):
+        z = zones.item(zid)
+        lab = zones.labels_by_item(store()).get(zid)
+        if not z or not lab:
+            abort(404)
+        return render_template("train_result.html", z=z, lab=lab, svg=zones.chart(z, reveal=True),
+                               prog=zones.progress(store()), kinds=zones.KINDS, labels=zones.LABELS,
+                               tag_label=zones.TAG_LABEL, nxt=zones.next_item(store()))
+
+    @app.route("/train/stats")
+    @login_required
+    def train_stats():
+        return render_template("train_stats.html", st=zones.stats(store()), kinds=zones.KINDS, labels=zones.LABELS)
 
     @app.route("/strategy")
     @login_required

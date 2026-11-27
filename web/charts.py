@@ -15,19 +15,25 @@ def _fmt(pair: str, x: float) -> str:
 
 def candles_svg(candles: list, levels: list[dict] | None = None, markers: list[dict] | None = None,
                 shade: list[dict] | None = None, pair: str = "GBPUSD", title: str = "", width: int = 720,
-                height: int = 300, after_from: str | None = None) -> str:
+                height: int = 300, after_from: str | None = None, boxes: list[dict] | None = None,
+                segments: list[dict] | None = None) -> str:
     """candles: [[iso_time, o, h, l, c], ...]. levels: {price, label, color, dash}.
     markers: {time, label}. shade: {start, end, color} by candle time (ISO). after_from: candles
-    at/after this time are drawn faded (what happened later, in practice reveals)."""
+    at/after this time are drawn faded (what happened later, in practice reveals).
+    boxes: {start, end, low, high, color, label} zones drawn as rectangles from the start candle (None end = right
+    edge). segments: {start, end, price, color, label} short horizontal lines (BOS/MSS from swing to break)."""
     if not candles:
         return '<p class="muted">No candles to draw.</p>'
     levels, markers, shade = levels or [], markers or [], shade or []
+    boxes, segments = boxes or [], segments or []
     pad_l, pad_r, pad_t, pad_b = 8, 96, 24, 22
     lo = min(c[3] for c in candles)
     hi = max(c[2] for c in candles)
     for lv in levels:
         if lv.get("price") is not None:
             lo, hi = min(lo, lv["price"]), max(hi, lv["price"])
+    for bx in boxes:
+        lo, hi = min(lo, bx["low"]), max(hi, bx["high"])
     span = (hi - lo) or 1.0
     lo, hi = lo - span * 0.04, hi + span * 0.04
     n = len(candles)
@@ -68,6 +74,24 @@ def candles_svg(candles: list, levels: list[dict] | None = None, markers: list[d
     for k in range(5):                                   # light grid with price labels
         p = lo + (hi - lo) * k / 4
         out.append(f'<line x1="{pad_l}" x2="{width - pad_r}" y1="{y(p):.1f}" y2="{y(p):.1f}" stroke="{GRID}" stroke-width="1"/>')
+    for bx in boxes:                                    # zones behind the candles
+        a = idx_of(bx["start"])
+        b = idx_of(bx["end"]) if bx.get("end") else n - 1
+        col = bx.get("color", AMBER)
+        out.append(f'<rect x="{x(a) - step / 2:.1f}" y="{y(bx["high"]):.1f}" width="{max(step, (b - a + 1) * step):.1f}" '
+                   f'height="{max(1.0, y(bx["low"]) - y(bx["high"])):.1f}" fill="{col}" opacity="0.16" '
+                   f'stroke="{col}" stroke-width="1"/>')
+        if bx.get("label"):
+            out.append(f'<text x="{x(a) - step / 2 + 2:.1f}" y="{y(bx["high"]) - 3:.1f}" font-size="10" '
+                       f'fill="{col}">{escape(bx["label"])}</text>')
+    for sg in segments:
+        a, b = idx_of(sg["start"]), idx_of(sg["end"])
+        col = sg.get("color", BLUE)
+        yy = y(sg["price"])
+        out.append(f'<line x1="{x(a):.1f}" x2="{x(b):.1f}" y1="{yy:.1f}" y2="{yy:.1f}" stroke="{col}" stroke-width="1.3"/>')
+        if sg.get("label"):
+            out.append(f'<text x="{(x(a) + x(b)) / 2:.1f}" y="{yy - 3:.1f}" font-size="10" fill="{col}" '
+                       f'text-anchor="middle">{escape(sg["label"])}</text>')
     fade_from = idx_of(after_from) if after_from else None
     for i, (t, o, h, l, c) in enumerate(candles):
         col = UP if c >= o else DOWN

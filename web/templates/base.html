@@ -31,6 +31,7 @@
   <div class="wrap">
     <a href="{{ url_for('home') }}" class="{{ 'active' if nav == 'home' }}">Find a setup</a>
     <a href="{{ url_for('practice') }}" class="{{ 'active' if nav and nav.startswith('practice') }}">Practice</a>
+    <a href="{{ url_for('train') }}" class="{{ 'active' if nav and nav.startswith('train') }}">Train zones</a>
     <a href="{{ url_for('journal') }}" class="{{ 'active' if nav == 'journal' }}">Journal</a>
     <a href="{{ url_for('plan_page') }}" class="{{ 'active' if nav == 'plan_page' }}">My test</a>
     <a href="{{ url_for('performance') }}" class="{{ 'active' if nav == 'performance' }}">Performance</a>

@@ -67,6 +67,7 @@ class MemoryStore:
         self.db.setdefault("community_codes", [])
         self.db.setdefault("latest_candles", {})
         self.db.setdefault("community_emails", [])
+        self.db.setdefault("zone_labels", [])
 
     def _save(self):
         if self.path:
@@ -145,6 +146,19 @@ class MemoryStore:
     def list_reviews(self, setup_id: str | None = None) -> list[dict]:
         rows = [r for r in self.db["reviews"] if setup_id is None or r["setup_id"] == setup_id]
         return copy.deepcopy(sorted(rows, key=lambda r: r["created_at"]))
+
+    # zone trainer (Ore labels order blocks / breakers)
+    def add_zone_label(self, row: dict) -> None:
+        with self.lock:
+            self.db["zone_labels"] = [r for r in self.db["zone_labels"] if r["item_id"] != row["item_id"]]
+            r = {"tags": [], "notes": ""}
+            r.update(copy.deepcopy(row))
+            r["created_at"] = now_iso()
+            self.db["zone_labels"].append(r)
+            self._save()
+
+    def list_zone_labels(self) -> list[dict]:
+        return copy.deepcopy(sorted(self.db["zone_labels"], key=lambda r: r["created_at"]))
 
     # scans
     def add_scan(self, row: dict) -> None:
@@ -368,6 +382,15 @@ class SupabaseStore:
         if setup_id:
             p["setup_id"] = f"eq.{setup_id}"
         return self._req("GET", "reviews", p) or []
+
+    # zone trainer
+    def add_zone_label(self, row: dict) -> None:
+        body = {"tags": [], "notes": "", **row, "created_at": now_iso()}
+        self._req("POST", "zone_labels", {"on_conflict": "item_id"}, body=body,
+                  prefer="resolution=merge-duplicates,return=minimal")
+
+    def list_zone_labels(self) -> list[dict]:
+        return self._req("GET", "zone_labels", {"select": "*", "order": "created_at.asc", "limit": "5000"}) or []
 
     # scans
     def add_scan(self, row: dict) -> None:

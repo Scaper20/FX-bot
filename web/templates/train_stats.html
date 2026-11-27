@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Zone training results · Setup Scanner{% endblock %}
+{% macro row(name, g) %}
+<tr><td class="full" data-label="Group"><b>{{ name }}</b></td><td class="num" data-label="Zones">{{ g.n }}</td>
+  {% for r in ('R1', 'R2', 'R3') %}<td class="num" data-label="Avg {{ r[1] }}R">{{ rfmt(g['avg_' ~ r]) if g['avg_' ~ r] is not none else '—' }}</td>
+  <td class="num" data-label="Hit {{ r[1] }}R">{{ pct(g['hit_' ~ r]) if g['hit_' ~ r] is not none else '—' }}</td>{% endfor %}</tr>
+{% endmacro %}
+{% block content %}
+<h1>What your zone labels show</h1>
+<p class="muted">{{ st.done }} of {{ st.total }} zones labelled. <a href="{{ url_for('train') }}">Continue training</a>. Each zone is scored as a limit at its edge, stop beyond the box + 2 spreads, after spread. Chance hit rates: 50% at 1R, 33% at 2R, 25% at 3R. Under about 30 zones in a group, the numbers are mostly luck.</p>
+<section class="card">
+  <h2>Your labels vs what happened</h2>
+  <div class="tablewrap"><table class="rtable">
+    <thead><tr><th>Group</th><th class="num">Zones</th>{% for r in ('1R', '2R', '3R') %}<th class="num">Avg R ({{ r }})</th><th class="num">Hit {{ r }}</th>{% endfor %}</tr></thead>
+    <tbody>
+      {% for k, text in labels.items() %}{{ row(text, st.by_label[k]) }}{% endfor %}
+      {{ row("Every zone in the set (labelled or not)", st.all) }}
+    </tbody>
+  </table></div>
+  <p class="small muted">The question: do your "Good" zones beat your "Not valid" ones, and beat all zones together? If yes, your eye sees something the rules don't, and the next step is to write down what.</p>
+</section>
+<section class="card">
+  <h2>By zone type</h2>
+  <div class="tablewrap"><table class="rtable">
+    <thead><tr><th>Group</th><th class="num">Zones</th>{% for r in ('1R', '2R', '3R') %}<th class="num">Avg R ({{ r }})</th><th class="num">Hit {{ r }}</th>{% endfor %}</tr></thead>
+    <tbody>
+      {% for kind, text in kinds.items() %}
+        {{ row(text ~ " · all", st.by_kind[kind]['all']) }}
+        {% for k, lt in labels.items() %}{% if st.by_kind[kind][k].n %}{{ row(text ~ " · you: " ~ k, st.by_kind[kind][k]) }}{% endif %}{% endfor %}
+      {% endfor %}
+    </tbody>
+  </table></div>
+</section>
+<section class="card">
+  <h2>What your Good zones have in common</h2>
+  <div class="tablewrap"><table class="rtable">
+    <thead><tr><th>Measured feature</th>{% for k, t in labels.items() %}<th class="num">Share in "{{ k }}"</th>{% endfor %}</tr></thead>
+    <tbody>
+      {% for f in st.features %}<tr><td class="full" data-label="Feature">{{ f.feature }}</td>{% for k in labels %}<td class="num" data-label="{{ k }}">{{ pct(f[k]) if f[k] is not none else '—' }}</td>{% endfor %}</tr>{% endfor %}
+      <tr><td class="full" data-label="Feature">Average zone size (× ATR)</td>{% for k in labels %}<td class="num" data-label="{{ k }}">{{ '%.2f' % st.size[k] if st.size[k] is not none else '—' }}</td>{% endfor %}</tr>
+    </tbody>
+  </table></div>
+  {% if st.tags %}
+  <h3>Your reasons vs outcome</h3>
+  <div class="tablewrap"><table class="rtable">
+    <thead><tr><th>Reason</th><th class="num">Zones</th><th class="num">Labelled good</th><th class="num">Avg R (2R)</th><th class="num">Hit 2R</th></tr></thead>
+    <tbody>{% for t in st.tags %}<tr><td class="full" data-label="Reason">{{ t.tag }}</td><td class="num" data-label="Zones">{{ t.n }}</td><td class="num" data-label="Labelled good">{{ pct(t.good_share) }}</td>
+      <td class="num" data-label="Avg R (2R)">{{ rfmt(t.avg_R2) if t.avg_R2 is not none else '—' }}</td><td class="num" data-label="Hit 2R">{{ pct(t.hit_R2) if t.hit_R2 is not none else '—' }}</td></tr>{% endfor %}</tbody>
+  </table></div>
+  {% endif %}
+</section>
+{% endblock %}

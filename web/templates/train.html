@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% from "_macros.html" import dir_pill with context %}
+{% block title %}Train zones · Setup Scanner{% endblock %}
+{% block content %}
+<div class="row spread">
+  <h1>Train zones</h1>
+  <span class="muted small">{{ prog.done }} of {{ prog.total }} labelled · <a href="{{ url_for('train_stats') }}">what your labels show</a></span>
+</div>
+<div class="bar" aria-hidden="true"><i style="width:{{ (100 * prog.done / prog.total) if prog.total else 0 }}%"></i></div>
+<p class="muted">Teach the system which zones are worth trading. Each one is a real past zone, shown at the moment price first comes back to it. Nothing after that is shown until you answer.</p>
+<section class="card">
+  <div class="setup-head">
+    <h2 style="margin:0">{{ z.pair }} {{ z.tf }} {{ dir_pill(z.direction) }} <span class="pill">{{ kinds[z.kind] }}</span></h2>
+    <span class="muted small">zone made {{ loc(z.made) }} · price returns {{ loc(z.touch) }} (GMT+0 on the chart)</span>
+  </div>
+  <div class="charts">{{ svg | safe }}</div>
+  <p class="small muted">Box = the zone, drawn from its first candle{% if z.kind == 'ob_ore' %} ({{ z.shape }}){% endif %}. Line = the {{ z.line.label }} it came from. {% if z.kind == 'breaker' %}This was an order block the other way; price closed through it (shaded candle). The question is whether it now works as a breaker.{% endif %}</p>
+</section>
+<section class="card">
+  <h2>Your call</h2>
+  <form method="post" action="{{ url_for('train_item', zid=z.id) }}">
+    <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+    <fieldset>
+      <legend>Is this a zone you'd trade from?</legend>
+      {% for k, text in labels.items() %}
+      <label class="row" style="color:inherit;margin:4px 0"><input type="radio" name="label" value="{{ k }}" required style="width:auto"> {{ text }}</label>
+      {% endfor %}
+    </fieldset>
+    <fieldset>
+      <legend>Why (tick any)</legend>
+      {% for k, text in tags %}
+      <label class="row" style="color:inherit;margin:2px 0"><input type="checkbox" name="tags" value="{{ k }}" style="width:auto"> {{ text }}</label>
+      {% endfor %}
+    </fieldset>
+    <label for="notes">Notes (what you'd draw differently, if anything)</label>
+    <textarea id="notes" name="notes" rows="2"></textarea>
+    <button class="btn" type="submit">Save and reveal what happened</button>
+  </form>
+</section>
+{% endblock %}

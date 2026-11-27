@@ -322,3 +322,36 @@ def test_order_block_strategy_logged_and_shown_separately(env):
     assert sid not in jr and sid in c.get("/journal?strategy=smc_ob").get_data(as_text=True)
     plan_page = c.get("/plan").get_data(as_text=True)
     assert "By strategy" in plan_page and "Order block" in plan_page
+
+
+def test_zone_trainer_hides_outcome_until_labelled(env):
+    from web import zones
+    app, store, clock = env
+    c = app.test_client()
+    login(c)
+    assert zones.items(), "zone set missing (scripts/build_zone_training.py)"
+    r = c.get("/train")
+    assert r.status_code == 302 and "/train/Z" in r.headers["Location"]
+    zid = r.headers["Location"].rsplit("/", 1)[-1]
+    z = zones.item(zid)
+    page = c.get(f"/train/{zid}").get_data(as_text=True)
+    assert "Your call" in page and "What happened" not in page
+    assert page.count("<g opacity") == len(z["candles"])           # only candles before the return are drawn
+    assert zones.chart(z, reveal=True).count("<g opacity") == len(z["candles"]) + len(z["after"])
+    assert all(pd.Timestamp(cc[0]) < pd.Timestamp(z["touch"]) for cc in z["candles"])
+    assert c.get(f"/train/{zid}/result").status_code == 404       # no reveal before a label
+    tok = csrf(c, f"/train/{zid}")
+    assert c.post(f"/train/{zid}", data={"csrf": tok, "label": "nonsense"}).status_code == 400
+    r = c.post(f"/train/{zid}", data={"csrf": tok, "label": "good", "tags": ["took_liquidity", "bogus"],
+                                      "notes": "clean engulfing"})
+    assert r.status_code == 302 and r.headers["Location"].endswith(f"/train/{zid}/result")
+    lab = store.list_zone_labels()
+    assert lab[0]["item_id"] == zid and lab[0]["tags"] == ["took_liquidity"]
+    res = c.get(f"/train/{zid}/result").get_data(as_text=True)
+    assert "What happened" in res and "you said" in res
+    st = zones.stats(store)
+    assert st["done"] == 1 and st["by_label"]["good"]["n"] == 1
+    assert "What your zone labels show" in c.get("/train/stats").get_data(as_text=True)
+    # relabelling replaces, never duplicates
+    c.post(f"/train/{zid}", data={"csrf": tok, "label": "weak"})
+    assert len(store.list_zone_labels()) == 1 and store.list_zone_labels()[0]["label"] == "weak"
