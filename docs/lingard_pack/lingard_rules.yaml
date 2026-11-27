@@ -1,0 +1,140 @@
+# Lingard "Advanced SMC": rule spec for a trading decision-support bot
+# source: Lingard February class series + Q&A session + leaked course (Class 1-4, Final, Trade Analysis) + Top-down course; [v2] = second batch
+# tags:  src = stated by Lingard | interp = my reading of garbled captions
+#        jax = from Jax's inducement video (Lingard-method follower, not Lingard)
+#        impl = implementation default I chose; tune by backtest/forward-test
+
+strategy: advanced_smc_lingard
+pipeline: [htf_bias, structure, liquidity, poi, entry, risk]
+
+timeframes:
+  bias_tfs: [3M, 1M, 1W, 1D]            # src: "open a TF that shows everything"; no fixed TF
+  setup_tfs: [4H, 2H, 1H, 45m, 30m]     # src examples
+  entry_tfs: [15m, 10m, 5m, 3m, 1m]     # src: entries only on LTF
+  rule: "Mark POIs on HTF; LTF only for entries"          # src
+  gold_btc_no_ltf_analysis: true        # src
+
+swing_detection:                         # impl: fractal swings; tune per TF
+  fractal_left: 3
+  fractal_right: 3
+  external_swing: "swing on bias/setup TF that price must take out"   # src concept
+  internal_swing: "swing visible only on lower TF inside external range"  # src concept
+
+bos:
+  def: "break of last swing high/low"            # src
+  wick_break_counts_with_trend: true             # src [v2]: "even if market close with wick, as long as it's downtrend"
+
+trend:
+  range_end_rule: "range ends only when MAIN high or MAIN low taken; internal breaks inside box don't count"  # src [v2]
+  uptrend: "successive higher highs broken AND last external low not violated"   # src
+  downtrend: "successive lower lows broken AND last external high not violated"  # src
+  range: "price breaking both ways inside a high-low box without leaving it"     # src
+  range_action: no_trade_or_scalp_only   # src
+
+shifts:
+  major_shift: {def: "close beyond EXTERNAL swing", action: valid_bias_change}  # src
+  minor_shift: {def: "CHoCH inside internal structure", action: ignore_or_fade_as_trap}  # src
+  fade_minor_shift_at_zone: true   # src: minor bearish shift at supply before external high taken = trap
+  after_external_sweep: {expect: retracement_to_htf_poi, caution_on_continuation_entries: true}  # src
+
+protected_swing:
+  valid_if: "liquidity sweep occurred below the low (above the high) before the BOS"   # src
+  invalid_if: "untaken liquidity rests just beyond it"                                 # src
+
+bos_without_liquidity:
+  expectation: likely_fail_then_reverse_to_take_it_as_liquidity   # src
+
+liquidity:
+  types: [equal_highs_lows, double_top_bottom, trend_liquidity, swing_high_low, long_wick_before_bos]  # src
+  trend_liquidity: "≥3 stair-step swings of similar size along a line"   # impl threshold, src concept
+  patterns:
+    A_before_bos: "first pullback BEFORE the BOS is liquidity; trade the return through it into nearest POI"  # src
+    B_after_bos:  "no pullback before BOS -> first pullback AFTER BOS is liquidity; trade return into nearest POI" # src
+  use_first_pullback_only: true          # src (repeated many times)
+  inducement_fake_zone: "small BOS creating fake demand/supply that traps early entries before real POI"  # src
+  require_liquidity_for_any_trade: true  # src: "we don't trade supply & demand without liquidity"
+  external: [swing_high_low, equal_highs_lows, double_top_bottom]    # src [v2]
+  internal: fvg                          # src [v2]: "internal liquidity found inside FVGs"
+  fvg_pullback_creates_ob_liquidity: true  # src [v2]: frequent, not mandatory
+  pattern_B_detail: "immediate BOS -> pullback (often into FVG) -> breaks another high -> return through pullback into OB below"  # src [v2]
+  pattern_frequency: {A_before_bos: common, B_after_bos: less_common}   # src [v2]
+  single_bos_no_liquidity: {ob_valid: false, action: wait_for_liquidity_then_lower_poi}  # src [v2]
+  re_entry_after_new_sweep: "continue from newest sweep+structure if trend intact"     # src [v2]
+  continuation_pullback_trade: {allowed: true, horizon: short, tp: early}               # src [v2]
+  qm_qml: not_used                       # src [v2]
+
+poi:
+  types: [order_block, breaker_block]    # src: only two
+  priority: order_block_over_breaker     # src: "OB is always stronger"
+  proximity_rule: "choose the POI NEAREST the liquidity; price won't skip it for a far POI"   # src
+  proximity_max_atr: 1.5                 # impl
+  order_block: "last opposite-colour candle(s) before impulsive move that breaks structure"   # impl (standard SMC def)
+  ob_marking: "full candle range incl. wicks; if several consecutive candles caused the break, mark the group from the first"  # src [v2]
+  ob_and_breaker_both: "price takes the one nearest liquidity first (often breaker); may return to OB later"  # src [v2]
+  breaker_immediate_return: {allowed: short_trade_only, target: nearest_high_low, note: "risky, 'not a long-time buy'"}  # src [v2]
+  structure_tf_rule: "use whichever TF shows the clean structure/liquidity/OB for that setup"   # src [v2]
+  breaker_block:
+    def: failed_order_block              # src
+    checklist:                           # src, in his order
+      - break_through_ob
+      - fvg_or_inefficiency_inside       # src: "majority of the time", treat as score not hard filter
+      - first_pullback_after_break_does_not_touch_breaker   # creates liquidity
+      - return_to_breaker_after_liquidity_taken
+    multiple_failed_obs: "target the FIRST OB that failed; price often reacts at the 2nd to build liquidity first"  # src
+  refine_large_poi: "on LTF use unmitigated OB inside HTF POI nearest the liquidity, ideally with wick-protecting sweep"  # src
+  ob_inside_breaker_on_ltf: use_ob       # src
+  missed_poi_rule: "if liquidity swept and price leaves w/ momentum, use nearest LTF breaker/OB formed right after the sweep"  # src (recent adjustment)
+
+bias:
+  method: "apply structure+liquidity+POI on bias TF; target = next external swing / HTF POI"  # src
+  align_setups_with_bias: true           # src
+  counter_bias: {allowed: scalp_only, target: nearest_liquidity}   # src
+  sequence: [3M, 1M_or_1W, 1D, 4H, 2H, entry_tf]   # src [v2] Final Class
+  htf_v_reaction_at_demand: "HTF demand respected -> LTF sells weak/short-lived, expect HTF retrace up first"  # src [v2]
+  htf_down_daily_up: "daily up = retracement for liquidity; buys allowed toward HTF POI, then sell"  # src
+
+entries:
+  standard: {trigger: "liquidity taken then price taps POI", sl: "beyond POI / protected swing", tp: "next liquidity or external swing in bias direction"}  # src
+  confirmation:                          # src (use when POI is large)
+    when: poi_height_large               # impl: e.g. SL > 2x median SL for that pair/TF
+    steps: [liquidity_sweep, change_of_character, retrace_to_choch_ob, enter]
+    sl: beyond_choch_ob
+    ltf: [5m, 3m]                        # src [v2]: specialise in 3m/5m
+    ltf_gold: [1m]                       # src [v2]
+    works_best_from: order_block         # src [v2]: breakers rarely give this entry
+    variant_no_ltf_sweep: "enter at initial LTF demand/supply that caused CHoCH; SL beyond that LTF low/high"  # src [v2]
+  take_profit:                           # src [v2]
+    default: next_liquidity_in_bias_direction
+    at_expected_reversal_level: take_tp_at_sweep
+    counter_trend_or_continuation: take_tp_early
+  candlestick_patterns_used: false       # src: "I don't use candles"
+  execution: market_then_set_sl          # src: he prefers instant execution over limits
+
+risk:
+  min_rr: 5                              # src: "1 to 6 R minimum", 1:5 "easy to catch"
+  max_trades_per_day: 3                  # interp
+  stop_after_losses_per_day: 2           # src: "2 SL day close"
+  avoid_sessions: [night]                # src; impl: map to Asian/late-NY for your broker TZ
+  no_revenge_trading: true               # src
+  no_counter_trend: true                 # src
+  risk_per_trade_pct: 1.0                # impl: NOT his 10% compounding plan; see notes
+
+jax_inducement_filters:                  # jax: optional extra filters, measurable
+  pre_inducement_retrace_min: 0.50
+  engineered_liquidity_retrace_min: 0.70   # prefer >= 0.80; 1.00 = double top/bottom (best)
+  inducement_must_not_touch_poi: true      # except long-wick POI tapped only on wick
+  inducement_before_mss_invalid: true
+  no_single_candle_inducement_after_mss: true
+  after_strong_swing_taken: require_complete_inducement
+  avoid_engineered_liquidity_in_long_trend: true
+
+labels_for_training:                     # suggested labels per detected setup
+  - bias_direction
+  - external_swing_taken
+  - pattern: [A_before_bos, B_after_bos]
+  - liquidity_type
+  - poi_type: [ob, breaker]
+  - poi_has_fvg
+  - first_pullback: bool
+  - entry_type: [standard, confirmation]
+  - outcome_R

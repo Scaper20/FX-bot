@@ -1,0 +1,112 @@
+# Toni Iyke strategy: rule spec for a trading decision-support bot
+# source: leaked mentorship (Jan 2026 structure + POI, Mar 2026 liquidity, Oct 2025 bias, trading plan, TP class)
+# tags: src = stated by Toni | interp = my reading | impl = implementation default, tune by testing
+
+strategy: toni_iyke_smc
+concepts: [market_structure, liquidity, poi, directional_bias]
+not_used: [fvg, premium_discount, candlestick_patterns]   # src: "anything I didn't teach, I don't trade"
+pipeline: [bias, structure, inducement, poi_rules, entry, exit]
+
+timeframes:
+  bias: [1D, 4H]                     # src (mostly 1D)
+  bias_confirmation: {from_1D: [4H, 2H], from_4H: [1H, 2H]}   # src
+  trading: 1H                        # src: analysis and entry on SAME TF; lower if very volatile
+  any_tf_ok_after_bias: true         # src
+
+swing_detection: {fractal_left: 2, fractal_right: 2}   # impl
+
+structure:
+  trend: {up: "HH+HL", down: "LH+LL", range: "horizontal S/R"}   # src
+  break_requires_body_close: true    # src (MSS, DBOS, inducement validation)
+  mss:                               # reversal tool
+    trigger: "body close beyond LAST opposing swing (last LH in downtrend / last HL in uptrend)"   # src
+    min_levels_broken: 1             # src
+    valid_only_at: [htf_poi_daily_or_4h, large_body_ob]    # src ("80% at daily POI")
+    avoid_at_all_time_high: true     # src (no HTF zone)
+  dbos:                              # continuation tool (multiple break of structure)
+    min_levels_broken: 2             # src
+    require_internal_and_external: true   # src (Jan 2026 refinement); fallback: any 2 levels
+    internal_level: "swing formed in current trend leg"     # src
+    external_level: "swing formed in previous opposite leg" # src
+    single_candle_required: false    # src (usually is)
+    slight_close_beyond_ok: true     # src
+  single_bos: ignore                 # src
+  one_structure_type_per_setup: true # src
+  first_time_reversal_order: "MSS POI must be tapped before any later DBOS is valid"   # src
+
+inducement:
+  def: "first pullback after MSS/DBOS candle CLOSES"    # src
+  forms: [full_retracement, single_candle_wick]          # src
+  valid_when: "after pullback, a candle BODY-closes beyond the BODY close of the MSS/DBOS candle"   # src
+  wick_only_break_valid: false       # src
+  later_pullback_can_qualify: true   # src
+  required: true                     # src ("no inducement, don't trade")
+  enter_at_inducement: false         # src: price must take it then tap POI
+
+poi:
+  candidates_after: "MSS/DBOS candle close"   # src
+  types:
+    order_block: "opposite candle engulfed by next candle in move direction"   # src
+    breaker: "BODY of each swing level broken while creating the MSS/DBOS"     # src
+  merge_same_level: true             # src
+  selection_rules:                   # src, in order
+    1: structure_present             # MSS or DBOS
+    2: valid_inducement_present
+    3: unmitigated                   # disqualify if inducement leg touched POI BODY (wick ok); touches before MSS don't count
+    4: closest_to_inducement
+  ob_entry:
+    if_entry_wick_shorter_than_body: entry_at_wick_extreme   # src
+    else: entry_at_body              # src
+  sl:
+    ob: "beyond full OB incl. wicks"                 # src
+    breaker: "beyond all breaker candles; if too wide, just before next deeper POI"   # src
+  no_trigger: skip                   # src
+  stacking: false                    # src
+
+bias:
+  method_A_trend:
+    - read_1D_or_4H_trend
+    - mark_next_HL_or_LH_zone: [htf_breaker, htf_ob, trendline_touch]   # confluence preferred
+    - wait_price_in_zone
+    - confirm_on_lower_tf: [mss, inducement, poi_tap]   # one-time per leg
+    - target: "last HTF high (up) / last HTF low (down)"
+    - trade_continuations_until_target: true
+  method_B: "run MSS/DBOS->inducement->POI on 1D/4H; HTF TP = bias target"   # src
+  missed_confirmation_but_visible: trade_new_direction   # src
+  dont_counter_trade_before_target: true                 # src
+
+exits:
+  philosophy: "TP at liquidity, not at fixed RR"     # src
+  min_rr_note: "will take 1:4-1:5 if that's the liquidity"  # src
+  reversal_tp: "origin of previous trend (full trend-line liquidity)"   # src
+  continuation_tp:
+    if_reversal_tp_unhit: use_reversal_tp            # src
+    else: "origin of the trend/wedge price used to APPROACH the POI"     # src
+  swing_point_tp: "last swing high (buy) / low (sell) before POI triggered = nearest draw"   # src (highest hit rate)
+  range_tp: "opposite side of range after POI-side sweep"   # src
+  other_targets: [equal_highs_lows, long_wick, opposite_inducement, valid_opposing_poi]   # src (2025 class)
+  partials_then_rejoin_with_continuations: true     # src
+  trendline_rule: "connect only seamless swings"    # src
+
+filters:
+  no_trades_inside_liquidity_pool: "once reversal underway, ignore counter-direction POIs inside the trend-line/range being cleared"   # src
+  no_reversal_until_liquidity_taken: true           # src (2025 class)
+  range_inner_pois: ignore_against_move             # src
+
+risk:
+  plan_every_deposit: true           # src
+  max_trades_per_week: 3             # src (in his plans)
+  assumed_avg_rr: 6                  # src
+  risk_per_trade_pct: 1.0            # impl, NOT his 25-50% plans
+
+labels_for_training:
+  - bias_direction
+  - structure_type: [mss, dbos]
+  - levels_broken_count
+  - internal_external_broken: bool
+  - inducement_type: [full, wick]
+  - candidate_pois: list
+  - disqualified_pois: list
+  - chosen_poi_type: [ob, breaker]
+  - tp_type: [trendline_origin, swing_point, range_far_side, equal_hl, long_wick]
+  - outcome_R
