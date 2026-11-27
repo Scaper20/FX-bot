@@ -156,3 +156,18 @@ ul.list li:last-child { border-bottom: 0; }
 .ichart-key i { width: 14px; height: 3px; border-radius: 2px; display: inline-block; }
 svg.chart.bars, .card > svg.chart { max-width: 720px; }
 [hidden] { display: none !important; }
+
+/* tracking lines: chat-style steps next to a live chart */
+.watch-more { margin: 8px 0 2px; }
+.watch-grid { display: grid; gap: 12px; margin-top: 8px; }
+@media (min-width: 860px) { .watch-grid { grid-template-columns: minmax(240px, 1fr) 2fr; align-items: start; } }
+.chat { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.chat .msg { position: relative; max-width: 100%; padding: 8px 12px; border-radius: 14px 14px 14px 4px; font-size: 13px;
+  background: var(--card); border: 1px solid var(--line); }
+.chat .msg .who { display: block; font-size: 11px; font-weight: 600; letter-spacing: .02em; text-transform: uppercase;
+  color: var(--muted); margin-bottom: 2px; }
+.chat .msg.done { background: var(--green-bg); border-color: transparent; }
+.chat .msg.done .who { color: var(--green); }
+.chat .msg.now { background: var(--blue-bg); border-color: var(--blue); }
+.chat .msg.now .who { color: var(--blue); }
+.chat .msg.next { color: var(--muted); border-style: dashed; }

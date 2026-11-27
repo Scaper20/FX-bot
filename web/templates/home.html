@@ -83,7 +83,21 @@
     {% if w.level is not none and w.distance is not none %} Price now <span class="mono">{{ price(w.pair, w.price) }}</span>,
       {% if w.beyond_now %}<b>past the level right now</b>: it counts only if the candle closes there ({{ loc(w.closes_at, '%H:%M') }}).{% else %}{{ '%.1f pips' % (w.distance * 10000) if w.pair == 'GBPUSD' else '$%.2f' % w.distance }} away.{% endif %}
     {% endif %}
-    {% if w.irl_erl %}<br><span class="small muted">IRL/ERL: {{ w.irl_erl }}.</span>{% endif %}</li>
+    {% if w.irl_erl %}<br><span class="small muted">IRL/ERL: {{ w.irl_erl }}.</span>{% endif %}
+    {% if w.story %}
+    <details class="watch-more">
+      <summary>Chart and step-by-step</summary>
+      <div class="watch-grid">
+        <ol class="chat" aria-label="{{ strategies[w.strategy].name }} on {{ w.pair }}, step by step">
+          {% for m in w.story %}
+          <li class="msg {{ m.state }}"><span class="who">{{ {'done': 'Done', 'now': 'Now', 'next': 'Next'}[m.state] }}</span>
+            {% if m.state == 'now' %}<b>{{ m.title }}</b><br>{{ m.text }}{% if w.level is not none and w.distance is not none %} Price now <span class="mono">{{ price(w.pair, w.price) }}</span>, {{ '%.1f pips' % (w.distance * 10000) if w.pair == 'GBPUSD' else '$%.2f' % w.distance }} from <span class="mono">{{ price(w.pair, w.level) }}</span>.{% endif %}{% else %}{{ m.text }}{% endif %}</li>
+          {% endfor %}
+        </ol>
+        <div class="ichart" data-lazy="1" data-src="{{ url_for('chart_watch', pair=w.pair, strategy=w.strategy) }}"></div>
+      </div>
+    </details>
+    {% endif %}</li>
 {% endfor %}
 </ul>
 <p class="muted small">Final step: when every rule is met, the limit order appears above as a setup card. These lines are heads-ups only; nothing here is logged.</p>

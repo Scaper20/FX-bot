@@ -266,6 +266,40 @@ def _poi_checks(s: dict, m: dict) -> list[dict]:
 
 # ------------------------------------------------------------------ tracking status ("what it's waiting for")
 
+PLAN = {     # one line per step, then the final card (shown as chat messages on Find a setup)
+    "smc_ob": ["Bias: the D1 and H4 trends agree", "H1 market structure shift (MSS) with the bias",
+               "Limit order at your order block at the top/bottom of the move (setup card)"],
+    "irl_erl": ["Bias: the H4 IRL/ERL draw agrees with the D1 trend", "H1 market structure shift (MSS) with the bias",
+                "Limit order at your order block at the top/bottom of the move (setup card)"],
+    "toni": ["Bias: the D1 trend", "H1 MSS or multiple BOS, then the inducement",
+             "Limit order at the closest untouched breaker / order block (setup card)"],
+    "lingard": ["Bias: the D1 trend", "H4 first BOS after an MSS (first-pullback liquidity)",
+                "Limit order at the order block beyond the liquidity (setup card)"],
+    "ore_poi": ["Bias: the D1 trend", "Price taps a fresh H4 order block or FVG for the first time (breakers ignored)",
+                "M15 MSS → BOS → liquidity (the BOS pullback) taken",
+                "Limit order at the M15 breaker, else order block (setup card)"],
+}
+ZONE, LINE, MARK = "#D99A1E", "#2F5D9E", "#0F1B2D"
+
+
+def _story(key: str, w: dict) -> list[dict]:
+    """Chat-style steps: done ones, the current one (with the live description), the ones still to come."""
+    out = []
+    for i, txt in enumerate(PLAN[key], 1):
+        if i < w["step"]:
+            out.append({"state": "done", "text": w["bias"] + " ✓" if i == 1 else txt + " ✓"})
+        elif i == w["step"]:
+            out.append({"state": "now", "title": txt, "text": w.get("text", "")})
+        else:
+            out.append({"state": "next", "text": txt})
+    return out
+
+
+def _finish(key: str, w: dict, draw: dict | None = None) -> dict:
+    w["draw"] = draw or {"levels": [], "marks": []}
+    w["story"] = _story(key, w)
+    return w
+
 
 def _leg_extreme(h, l, j, d):
     return (j + int(np.argmax(h[j:]))) if d == 1 else (j + int(np.argmin(l[j:])))
@@ -290,30 +324,37 @@ def watch_smc_pair(mkt: Market, pair: str) -> list[dict]:
         biases = {tf: bias_value(mkt, tf, now) for tf in m["bias"]}
         bias_txt = " · ".join(_bias_label(tf, v) for tf, v in biases.items())
         ie = _ie_summary(mkt, now)
-        w = {"pair": pair, "strategy": key, "price": price, "bias": bias_txt, "direction": None, "step": 1,
+        to = F.index.as_unit("ns").asi8
+        w = {"pair": pair, "strategy": key, "tf": m["tf"], "price": price, "bias": bias_txt, "direction": None, "step": 1,
              "irl_erl": " · ".join(f"{tf} {v['text']}" for tf, v in ie.items()) if key in ("smc_ob", "irl_erl") else "",
-             "steps": 3, "title": "Bias", "level": None, "beyond_now": False, "distance": None,
+             "steps": len(PLAN[key]), "title": "Bias", "level": None, "beyond_now": False, "distance": None,
              "closes_at": _ts(next_closes(m["tf"], now, 1)[0])}
         vals = set(biases.values())
         if len(vals) != 1 or 0 in vals:
             w["text"] = (f"{' and '.join(m['bias'])} don't agree, so there is no trade direction." if len(m["bias"]) > 1
                          else "No clear D1 trend, so there is no trade direction.")
-            out.append(w)
+            out.append(_finish(key, w))
             continue
         d = vals.pop()
         w["direction"] = "long" if d == 1 else "short"
         if key == "ore_poi":
-            out.append(_watch_ore(mkt, pair, w, d, price, F, now))
+            w, draw = _watch_ore(mkt, pair, w, d, price, F, now)
+            out.append(_finish(key, w, draw))
             continue
         ev = external_structure(o, h, l, c, m["mode"])
         last = ev[-1] if ev else None
         up, word = d == 1, ("above" if d == 1 else "below")
         brk = "close" if m["mode"] == "close" else "trade"
+        draw = {"levels": [], "marks": []}
+        if last is not None:
+            draw["marks"].append({"time": _ts(to[last["j"]]), "text": "B"})
         if last is None:
             w["text"] = f"Not enough {m['tf']} structure yet."
         elif last["dir"] != d:
             p = last["protected"]
             lvl = float(h[p] if up else l[p])
+            draw["levels"].append({"price": lvl, "title": f"Must {brk} {word} (MSS)", "color": LINE, "from": _ts(to[p])})
+            draw["marks"].append({"time": _ts(to[p]), "text": "S"})
             w.update(step=2, title=f"Waiting for the {m['tf']} MSS", level=lvl, distance=abs(price - lvl),
                      beyond_now=bool(len(forming)) and (price > lvl if up else price < lvl))
             w["text"] = (f"{m['tf']} is still moving against the bias. A {m['tf']} candle must {brk} {word} "
@@ -323,7 +364,11 @@ def watch_smc_pair(mkt: Market, pair: str) -> list[dict]:
         else:
             x = _leg_extreme(h, l, last["j"], d)
             lvl = float(h[x] if up else l[x])
+            draw["levels"].append({"price": lvl, "title": "High of the move" if up else "Low of the move",
+                                   "color": LINE, "from": _ts(to[x])})
             if key == "toni" and n - 1 - last["j"] < LOOK:
+                draw["levels"].append({"price": float(c[last["j"]]), "title": "Structure candle close",
+                                       "color": ZONE, "from": _ts(to[last["j"]])})
                 w.update(step=2, title="Waiting for the inducement", level=float(c[last["j"]]))
                 w["text"] = (f"{m['tf']} {last['kind']} in the bias direction. Next: a pullback, then a candle "
                              f"closing {word} the structure candle's close; then the closest untouched breaker or "
@@ -336,7 +381,7 @@ def watch_smc_pair(mkt: Market, pair: str) -> list[dict]:
                 w.update(step=2, title=f"Waiting for a pullback on {m['tf']}", level=lvl)
                 w["text"] = (f"{m['tf']} is already moving with the bias. The setup needs a pullback against it "
                              f"and then a shift back.")
-        out.append(w)
+        out.append(_finish(key, w, draw))
     return out
 
 
@@ -347,7 +392,7 @@ def _fmt(pair: str, v: float) -> str:
 TAP_RECENT = 50          # M15 candles: 20 (tap before the top) + 30 (pattern after the top)
 
 
-def _watch_ore(mkt: Market, pair: str, w: dict, d: int, price: float, F: pd.DataFrame, now: int) -> dict:
+def _watch_ore(mkt: Market, pair: str, w: dict, d: int, price: float, F: pd.DataFrame, now: int):
     """Ore's model (spec v26): step 2 = waiting for a fresh H4 OB/FVG tap, step 3 = tapped, waiting for the M15
     pattern (MSS, BOS, liquidity taken). Breakers are ignored."""
     Z = htf_poi(mkt)
@@ -361,19 +406,21 @@ def _watch_ore(mkt: Market, pair: str, w: dict, d: int, price: float, F: pd.Data
     if len(tapped):
         z = tapped.sort_values("touch").iloc[-1]
         lvl = float(z["hi"] if d == -1 else z["lo"])
+        draw = _zone_draw(z, "Tapped H4 " + POI_WORD[z["type"]])
+        draw["marks"].append({"time": _ts(int(z["touch"])), "text": "T"})
         w.update(step=3, title="H4 zone tapped: waiting for the M15 pattern", level=lvl, distance=abs(price - lvl))
         w["text"] = (f"Price tapped a fresh H4 {POI_WORD[z['type']]} ({side} zone {_fmt(pair, z['lo'])}–"
                      f"{_fmt(pair, z['hi'])}) at {pd.Timestamp(int(z['touch']), tz='UTC'):%a %H:%M} GMT+0. Next on M15: "
                      f"an MSS, then a BOS the same way; the BOS pullback is the liquidity and the entry sits beyond it. "
                      f"The pattern must finish within 30 M15 candles of the {'top' if d == -1 else 'bottom'}.")
-        return w
+        return w, draw
     fresh = Z[Z["touch"] == never] if len(Z) else Z
     fresh = fresh[fresh["lo"] > price] if d == -1 else fresh[fresh["hi"] < price] if len(fresh) else fresh
     if not len(fresh):
         w.update(step=2, title="Waiting for a fresh H4 zone")
         w["text"] = (f"No untouched H4 order block or fair value gap on the {side} side of price right now "
                      f"(H4 breakers are ignored). Waiting for one to form or for price to reach one.")
-        return w
+        return w, None
     near = fresh["lo"] if d == -1 else fresh["hi"]
     z = fresh.loc[(near - price).abs().idxmin()]
     lvl = float(z["lo"] if d == -1 else z["hi"])
@@ -381,4 +428,11 @@ def _watch_ore(mkt: Market, pair: str, w: dict, d: int, price: float, F: pd.Data
     w["text"] = (f"Nearest untouched H4 {POI_WORD[z['type']]} for a {side}: {_fmt(pair, z['lo'])}–{_fmt(pair, z['hi'])}. "
                  f"Price must {'rise' if d == -1 else 'fall'} into it first (H4 breakers are ignored); then the M15 "
                  f"pattern is the entry model.")
-    return w
+    return w, _zone_draw(z, "Fresh H4 " + POI_WORD[z["type"]])
+
+
+def _zone_draw(z, label: str) -> dict:
+    t = _ts(int(z["created"]))
+    return {"levels": [{"price": float(z["hi"]), "title": f"{label} top", "color": ZONE, "dashed": True, "from": t},
+                       {"price": float(z["lo"]), "title": f"{label} bottom", "color": ZONE, "dashed": True, "from": t}],
+            "marks": [{"time": t, "text": "Z"}]}

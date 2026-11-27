@@ -355,3 +355,18 @@ def test_zone_trainer_hides_outcome_until_labelled(env):
     # relabelling replaces, never duplicates
     c.post(f"/train/{zid}", data={"csrf": tok, "label": "weak"})
     assert len(store.list_zone_labels()) == 1 and store.list_zone_labels()[0]["label"] == "weak"
+
+
+def test_watch_chart_endpoint_and_chat(env):
+    app, store, clock = env
+    service.run_scan(store, app.extensions["feed_factory"](), clock["now"], trigger="test", counts_credits=False)
+    c = app.test_client()
+    login(c)
+    page = c.get("/").get_data(as_text=True)
+    assert "Chart and step-by-step" in page and 'class="msg now"' in page
+    w = store.last_scan()["result"]["smc_watch"][0]
+    r = c.get(f"/api/chart/watch/{w['pair']}/{w['strategy']}")
+    assert r.status_code == 200
+    j = r.get_json()
+    assert j["default_tf"] == w["tf"] and j["tfs"].get(w["tf"]) and isinstance(j["levels"], list)
+    assert c.get("/api/chart/watch/GBPUSD/nope").status_code == 404

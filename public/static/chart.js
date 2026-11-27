@@ -181,9 +181,22 @@
     fetch(el.dataset.src, { credentials: "same-origin", headers: { "Accept": "application/json" } })
       .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
       .then(function (data) { return loadLib().then(function () { build(el, data); }); })
-      .catch(function () { el.remove(); });
+      .catch(function () {
+        if (el.dataset.lazy) {                 // tracking charts: say so instead of vanishing
+          el.innerHTML = '<p class="muted small">Chart not available yet; it appears after the next scan.</p>';
+        } else { el.remove(); }
+      });
   }
 
-  function start() { document.querySelectorAll(".ichart[data-src]").forEach(init); }
+  function start() {
+    document.querySelectorAll(".ichart[data-src]").forEach(function (el) {
+      var d = el.dataset.lazy ? el.closest("details") : null;
+      if (!d || d.open) { init(el); return; }
+      d.addEventListener("toggle", function once() {      // load only when opened (many on one page)
+        if (!d.open) return;
+        d.removeEventListener("toggle", once); init(el);
+      });
+    });
+  }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start); else start();
 })();

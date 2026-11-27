@@ -228,3 +228,22 @@ def test_ore_poi_setups_follow_spec_v26(feed):
             assert (s["variant"] == "BB") == ((s["decision"], d) in bb)
         n_all += len(ss)
     assert n_all > 0, "expected some Ore's-model setups in the replay"
+
+
+def test_watch_lines_carry_chat_steps_and_chart_drawings(feed):
+    """Each tracking line has chat steps (done before the current step, one 'now', the rest 'next', ending with the
+    setup card) and chart drawings whose levels and marks exist by the scan time."""
+    from engine.smc_live import PLAN, watch_smc_pair
+    t = pd.Timestamp("2023-04-19 11:00", tz="UTC")
+    for pair, mkt in markets(feed, t).items():
+        for w in watch_smc_pair(mkt, pair):
+            st = [m["state"] for m in w["story"]]
+            assert len(st) == len(PLAN[w["strategy"]]) == w["steps"]
+            assert st == ["done"] * (w["step"] - 1) + ["now"] + ["next"] * (w["steps"] - w["step"])
+            for lv in w["draw"]["levels"]:
+                assert pd.Timestamp(lv["from"]) <= t and lv["price"] > 0
+            for m in w["draw"]["marks"]:
+                assert pd.Timestamp(m["time"]) <= t
+            if w["level"] is not None and w["step"] > 1 and w["strategy"] != "toni":
+                assert any(abs(lv["price"] - w["level"]) < 1e-9 for lv in w["draw"]["levels"]) or \
+                    w["strategy"] == "ore_poi"

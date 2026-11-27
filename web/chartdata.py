@@ -117,3 +117,19 @@ def payload(card: dict, op: dict | None, before: dict, after: dict | None, tz_of
     if reveal_from:
         out["reveal_from"] = _sec(reveal_from)
     return out
+
+
+def watch_payload(w: dict, candles: dict) -> dict:
+    """Interactive chart for a tracking line on Find a setup: the strategy's timeframe, the levels / zone it is
+    waiting on (each from the moment it exists) and the swing / break / zone candles."""
+    tfs = {tf: candles.get(tf, []) for tf in TFS if candles.get(tf)}
+    dr = w.get("draw") or {}
+    lv = [{"price": x["price"], "title": x["title"], "color": x["color"], "dashed": bool(x.get("dashed")),
+           "from": _sec(x["from"])} for x in dr.get("levels", [])]
+    last = max((c[0] for c in tfs.get(w.get("tf") or "H1", [])), default=0)
+    return {"pair": w["pair"], "precision": 5 if w["pair"] in ("GBPUSD", "EURUSD") else 2,
+            "direction": w.get("direction") or "short", "default_tf": w.get("tf") or "H1", "range_tf": w.get("tf"),
+            "tz_offset": 0, "tfs": tfs, "after": {}, "levels": lv,
+            "markers": [{"time": _sec(m["time"]), "text": m["text"], "color": "#0F1B2D"} for m in dr.get("marks", [])],
+            "marker_key": "S swing that has to break · B last break (MSS/BOS) · Z zone formed · T first tap",
+            "focus": last}

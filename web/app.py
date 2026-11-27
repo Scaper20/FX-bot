@@ -690,6 +690,16 @@ def create_app(store=None, feed=None, now_fn=None) -> Flask:
         merged = {tf: chartdata.merge(before.get(tf, []), newer.get(tf, [])) for tf in before}
         return jsonify(chartdata.payload(card, op, merged, None, 0))
 
+    @app.route("/api/chart/watch/<pair>/<strategy>")
+    @login_required
+    def chart_watch(pair, strategy):
+        last = store().last_scan() or {}
+        w = next((x for x in (last.get("result") or {}).get("smc_watch", [])
+                  if x.get("pair") == pair and x.get("strategy") == strategy), None)
+        if not w:
+            abort(404)
+        return jsonify(chartdata.watch_payload(w, store().get_candles(pair)))
+
     @app.route("/api/chart/practice/<pid>")
     @login_required
     def chart_practice(pid):
