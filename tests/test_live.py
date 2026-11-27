@@ -123,61 +123,73 @@ def test_twelvedata_missing_key(monkeypatch):
         TD.fetch("GBPUSD", "M5", opener=lambda req, timeout: None)
 
 
-def test_smc_live_cards_follow_spec_v16(feed):
-    """Order-block model: D1+H4 bias, MSS on H1, entry at the OB open, stop above the top, exactly 3R before
-    spread, no 50% cancel, 3-day hold; a full strategy (recommended, with its backtest stats)."""
-    from engine.smc_live import MODEL, scan_smc_pair
+def test_smc_live_cards_follow_spec_v22(feed):
+    """Order block, Toni and Lingard cards: built by engine/smc_models (same code as backtest/smc_v22),
+    bias agrees, zone and structure finished by the decision, stop beyond the entry, targets per strategy."""
+    from engine.smc_live import MODELS, scan_smc_pair, trend
     found = []
-    for day in pd.date_range("2023-03-01", "2023-07-20", freq="1D", tz="UTC"):
-        if day.weekday() >= 5:
-            continue
-        now = day + pd.Timedelta("15h")
-        for pair, mkt in markets(feed, now).items():
-            found += scan_smc_pair(mkt, pair, SPREADS[pair])
-        if len(found) >= 3:
-            break
-    assert found, "expected at least one order-block setup in the replay months"
-    for c in found:
-        op = c["options"][0]
-        assert c["model"] == MODEL and c["strategy"] == "smc_ob" and c["recommended"] and op["recommended"]
-        assert op["stats"]["n"] > 100 and op["stats"]["enough"]
-        sgn = 1 if c["direction"] == "long" else -1
-        assert sgn * (op["target"] - op["entry"]) == pytest.approx(3 * sgn * (op["entry"] - op["stop"]), rel=1e-9)
-        assert sgn * (op["entry"] - op["stop"]) > 0 and op["entry"] == c["smc"]["ob_open"]
-        assert sgn * (c["smc"]["top_price"] - op["stop"]) > 0          # stop beyond the top of the move
-        o = op["order"]
-        assert o["hold_tf"] == "D1" and o["hold_n"] == 3 and not o["market"]
-        assert pd.Timestamp(c["smc"]["mss_time"]) < pd.Timestamp(op["decision_time"])
-        assert pd.Timestamp(c["smc"]["ob_time"]) <= pd.Timestamp(c["smc"]["top_time"])
-
-
-def test_smc_watch_level_is_the_one_the_strategy_breaks(feed):
-    """The heads-up shows the H1 swing an MSS would break next. When the next H1 candle closes past it, the
-    strategy's own MSS detection (structure.mss_events) must fire on that same swing."""
-    from engine import structure as S
-    from engine.smc_live import watch_smc_pair
-    stages, checked = set(), 0
-    for t in pd.date_range("2023-03-06 08:00", "2023-05-26 16:00", freq="7h", tz="UTC"):
+    for t in pd.date_range("2023-03-01", "2023-06-28", freq="5h", tz="UTC"):
         if t.weekday() >= 5:
             continue
         for pair, mkt in markets(feed, t).items():
-            w = watch_smc_pair(mkt, pair)
-            assert w and w["pair"] == pair and w["stage"] in ("bias", "next_swing", "mss")
-            stages.add(w["stage"])
-            assert w["aligned"] == (w["direction"] is not None)
-            if w["stage"] != "mss":
+            for c in scan_smc_pair(mkt, pair, SPREADS[pair]):
+                m = MODELS[c["strategy"]]
+                dec = pd.Timestamp(c["decision_time"])
+                for tf in m["bias"]:
+                    assert trend(mkt, tf, dec.value) == (1 if c["direction"] == "long" else -1)
+                found.append(c)
+    kinds = {c["strategy"] for c in found}
+    assert {"smc_ob", "toni"} <= kinds, f"expected order-block and Toni setups in the replay, got {kinds}"
+    for c in found:
+        op = c["options"][0]
+        z, ln = c["smc"]["zone"], c["smc"]["line"]
+        assert c["recommended"] and op["recommended"] and c["model"] == c["strategy"]
+        sgn = 1 if c["direction"] == "long" else -1
+        assert sgn * (op["entry"] - op["stop"]) > 0 and sgn * (op["target"] - op["entry"]) > 0
+        assert z["low"] <= op["entry"] <= z["high"] or c["strategy"] == "toni"
+        assert pd.Timestamp(z["start"]) <= pd.Timestamp(op["decision_time"])
+        assert pd.Timestamp(ln["end"]) < pd.Timestamp(op["decision_time"])
+        risk = abs(op["entry"] - op["stop"])
+        if c["strategy"] == "smc_ob":
+            assert abs(op["target"] - op["entry"]) == pytest.approx(3 * risk, rel=1e-9)
+        if c["strategy"] == "lingard":
+            assert abs(op["target"] - op["entry"]) == pytest.approx(5 * risk, rel=1e-9)
+            assert op["session"] != ""
+        o = op["order"]
+        assert o["hold_tf"] == "D1" and o["hold_n"] == MODELS[c["strategy"]]["hold"] and not o["market"]
+
+
+def test_smc_watch_level_is_the_one_the_strategy_breaks(feed):
+    """Order-block heads-up: when it says 'waiting for the H1 MSS' at a level, and the next H1 candle closes past
+    that level, the structure engine reports an MSS on that candle breaking that same level."""
+    from engine.smc_live import watch_smc_pair
+    from engine.smc_structure import external_structure
+    titles, checked = set(), 0
+    for t in pd.date_range("2023-03-06 08:00", "2023-06-26 16:00", freq="3h", tz="UTC"):
+        if t.weekday() >= 5:
+            continue
+        for pair, mkt in markets(feed, t).items():
+            ws = watch_smc_pair(mkt, pair)
+            assert {w["strategy"] for w in ws} == {"smc_ob", "toni", "lingard"}
+            for w in ws:
+                titles.add(w["title"])
+                assert (w["direction"] is None) == (w["step"] == 1)
+            w = next(x for x in ws if x["strategy"] == "smc_ob")
+            if not w["title"].startswith("Waiting for the H1 MSS"):
                 continue
-            assert (w["direction"] == "long") == (w["bias_d1"] == "bullish") and w["bias_d1"] == w["bias_h4"]
-            nxt = Market.from_frames(feed.frames(pair, t + pd.Timedelta("1h")), t + pd.Timedelta("1h"))
-            mir = w["direction"] == "long"
-            V = nxt.view[("H1", mir)]
-            sg = -1.0 if mir else 1.0
-            new_candle = int(V.t_open[-1]) > int(mkt.view[("H1", mir)].t_open[-1])     # feed window slides
-            closed_past = new_candle and V.c[-1] < sg * w["level"]
-            fired = [ev for ev in S.mss_events(V.o, V.h, V.l, V.c, include_last=True) if ev[0] == len(V.c) - 1]
-            assert bool(fired) == closed_past
+            t2 = t + pd.Timedelta("1h")
+            nxt = Market.from_frames(feed.frames(pair, t2), t2)
+            F, F0 = nxt.frames["H1"], mkt.frames["H1"]
+            if F.index[-1] <= F0.index[-1]:
+                continue                                   # no new H1 candle (weekend / gap)
+            c_last = float(F["close"].iloc[-1])
+            up = w["direction"] == "long"
+            closed_past = c_last > w["level"] if up else c_last < w["level"]
+            ev = external_structure(*(F[k].to_numpy(float) for k in ("open", "high", "low", "close")), "close")
+            fired = [e for e in ev if e["j"] == len(F) - 1 and e["kind"] == "MSS" and e["dir"] == (1 if up else -1)]
+            assert bool(fired) == closed_past, (pair, t, w["level"], c_last)
             if fired:
-                assert pd.Timestamp(int(V.t_open[fired[0][2]]), tz="UTC") == pd.Timestamp(w["swing_time"])
+                assert fired[0]["level"] == pytest.approx(w["level"])
                 checked += 1
-    assert {"bias", "mss"} <= stages
+    assert "Bias" in titles and "Waiting for the H1 MSS" in titles
     assert checked >= 1, "expected at least one MSS right after a heads-up in the replay"

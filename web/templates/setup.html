@@ -13,10 +13,10 @@
   {% if card.smc %}
   <p class="note small"><b>{{ strategies[sid].long }}.</b> {{ strategies[sid].evidence }} <a href="{{ url_for('strategy') }}#{{ sid }}">Rules</a> · <a href="{{ url_for('performance') }}#{{ sid }}">live results</a></p>
   <div class="kv">
-    <div><span>Bias</span><b>{{ card.smc.bias }}</b></div>
-    <div><span>{{ 'Bottom' if card.direction == 'long' else 'Top' }} of the move</span><b>{{ price(card.pair, card.smc.top_price) }}</b></div>
-    <div><span>Swing {{ 'high' if card.direction == 'long' else 'low' }} broken (MSS)</span><b>{{ price(card.pair, card.smc.swing_price) }}</b></div>
-    <div><span>Order block open</span><b>{{ price(card.pair, card.smc.ob_open) }}</b></div>
+    <div><span>Trend</span><b>{{ card.smc.bias }}</b></div>
+    <div><span>{{ card.smc.line.label }} level broken</span><b>{{ price(card.pair, card.smc.line.price) }}</b></div>
+    <div><span>{{ card.smc.origin.label }}</span><b>{{ price(card.pair, card.smc.origin.price) }}</b></div>
+    <div><span>{{ card.smc.zone.label }}</span><b>{{ price(card.pair, card.smc.zone.low) }} – {{ price(card.pair, card.smc.zone.high) }}</b></div>
   </div>
   {% else %}
   <div class="kv">
@@ -37,7 +37,7 @@
 <section class="card">
   <h2>Entry options, ranked</h2>
   {% if card.smc %}
-  <p class="muted small">One option, exactly as the strategy was backtested (spec v16): limit at the order block's open, stop beyond the extreme of the move + 2 spreads, target 3R, closed after 3 trading days. "History" is that backtest on this pair, 2021–26.</p>
+  <p class="muted small">One option, exactly as the strategy was backtested (spec v22): limit at the zone's edge, stop beyond the zone + 2 spreads, closed after {{ card.options[0].order.hold_n }} trading days if neither is hit. "History" is that backtest on this pair, 2021–26.</p>
   {% else %}
   <p class="muted small">Ranked by each option's 2021–2024 average result, pulled towards the overall average when the sample is small. <b>No option has shown an edge on unseen data</b>; "chance win rate" is what a coin-flip market gives for these stop and target distances, and the spread makes break-even a little harder than that.</p>
   {% endif %}

@@ -20,18 +20,17 @@ def _sec(t) -> int:
 
 def _smc_levels(card: dict, op: dict | None) -> list[dict]:
     m = card["smc"]
-    long = card["direction"] == "long"
-    out = [{"price": m["top_price"], "title": "Bottom of the move" if long else "Top of the move", "color": "#0F1B2D",
-            "dashed": True, "from": _sec(m["top_time"])},
-           {"price": m["swing_price"], "title": "Swing high broken (MSS)" if long else "Swing low broken (MSS)",
-            "color": "#2F5D9E", "dashed": True, "from": _sec(m["swing_time"])},
-           {"price": m["ob_far"], "title": "Order block far edge", "color": "#5B6577", "dashed": True,
-            "from": _sec(m["ob_time"])}]
+    z, ln, og = m["zone"], m["line"], m["origin"]
+    out = [{"price": z["high"], "title": f"{z['label']} top", "color": "#5B6577", "dashed": True, "from": _sec(z["start"])},
+           {"price": z["low"], "title": f"{z['label']} bottom", "color": "#5B6577", "dashed": True, "from": _sec(z["start"])},
+           {"price": ln["price"], "title": f"{ln['label']} level", "color": "#2F5D9E", "dashed": True,
+            "from": _sec(ln["start"])},
+           {"price": og["price"], "title": og["label"], "color": "#0F1B2D", "dashed": True, "from": _sec(og["time"])}]
     if op:
         t = _trigger_sec(op)
-        out += [{"price": op["entry"], "title": "Entry (order block open)", "color": "#D99A1E", "from": t},
+        out += [{"price": op["entry"], "title": "Entry (zone edge)", "color": "#D99A1E", "from": t},
                 {"price": op["stop"], "title": "Stop", "color": "#C8473B", "from": t},
-                {"price": op["target"], "title": "Target 3R", "color": "#0B7A5A", "from": t}]
+                {"price": op["target"], "title": "Target", "color": "#0B7A5A", "from": t}]
     return out
 
 
@@ -66,11 +65,11 @@ def markers(card: dict, op: dict | None) -> list[dict]:
     timeframe inside the sweep candle's time), T = the trigger candle."""
     if card.get("model"):
         m = card["smc"]
-        out = [{"kind": "point", "time": _sec(m["swing_time"]), "text": "S", "color": "#2F5D9E"},
-               {"kind": "point", "time": _sec(m["top_time"]), "text": "X", "color": "#0F1B2D"},
-               {"kind": "point", "time": _sec(m["ob_time"]), "text": "O", "color": "#D99A1E"}]
+        out = [{"kind": "point", "time": _sec(m["line"]["start"]), "text": "S", "color": "#2F5D9E"},
+               {"kind": "point", "time": _sec(m["line"]["end"]), "text": "B", "color": "#2F5D9E"},
+               {"kind": "point", "time": _sec(m["zone"]["start"]), "text": "Z", "color": "#D99A1E"}]
         if op:
-            out.append({"kind": "trigger", "time": _trigger_sec(op), "text": "M", "color": "#C8473B"})
+            out.append({"kind": "trigger", "time": _trigger_sec(op), "text": "E", "color": "#C8473B"})
         return out
     out = [{"kind": "range", "time": _sec(card["range_open"]), "text": "R", "color": "#D99A1E"}]
     if card.get("sweep_open"):
@@ -106,7 +105,7 @@ def payload(card: dict, op: dict | None, before: dict, after: dict | None, tz_of
            "range_tf": card["range_tf"], "tz_offset": tz_offset, "tfs": tfs,
            "after": {tf: (after or {}).get(tf, []) for tf in tfs} if after else {},
            "levels": levels(card, op), "markers": markers(card, op),
-           "marker_key": ("S swing that gets broken · X extreme of the move (stop side) · O order block · M structure shift (MSS) candle"
+           "marker_key": ("S swing that gets broken · B the break (MSS/BOS) · Z first candle of the zone · E candle that made the setup"
                           if card.get("model") else "R range candle · S sweep (where the extreme was made) · T trigger candle"), "focus": _sec((op or card)["decision_time"]
                                                                                  if (op or card).get("decision_time") else card["range_open"])}
     if reveal_from:

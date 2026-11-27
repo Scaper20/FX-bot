@@ -16,14 +16,36 @@ STRATEGIES = {
     },
     "smc_ob": {
         "name": "Order block",
-        "long": "H1 order block · D1+H4 bias",
+        "long": "H1 order block · D1+H4 trend",
         "rules_word": "the order-block rules",
-        "short": "D1 and H4 structure agree, H1 market structure shift, limit at the order block's open, 3R",
-        "evidence": ("Drawing review 27 Nov 2026: this version reads market structure from tiny swings, so its "
-                     "'MSS' and order block are often minor candles. Its old backtest (+0.27R on GBP/USD + gold, "
-                     "−0.12R on EUR/USD + silver) is not reliable; a correct rebuild (spec v21) found no edge."),
-        "report": "backtest/reports/smc_bias_v16.md",
+        "short": "D1 and H4 trends agree, H1 market structure shift, Ore's 2/3-candle order block at the top/bottom, 3R",
+        "evidence": ("Rebuilt 27 Nov 2026 on real market structure (spec v22): 28 trades in 5 years on GBP/USD + "
+                     "gold, −0.59R a trade; −0.31R on EUR/USD + silver. No edge found; live by Ore's decision."),
+        "report": "backtest/reports/smc_v22.md",
         "alert": "smc",
+        "practice": False,
+    },
+    "toni": {
+        "name": "Toni Iyke",
+        "long": "Toni Iyke · structure → inducement → POI",
+        "rules_word": "Toni's rules",
+        "short": "D1 trend, H1 MSS or multiple BOS, inducement, closest untouched breaker/order block, target the swing point",
+        "evidence": ("Spec v22 (real market structure): H1 multiple BOS with the D1 trend +0.03R over 155 trades "
+                     "(4 of 5 years) on GBP/USD + gold but −0.15R on EUR/USD + silver; MSS setups −0.15R. "
+                     "No edge found; live by Ore's decision."),
+        "report": "backtest/reports/smc_v22.md",
+        "alert": "toni",
+        "practice": False,
+    },
+    "lingard": {
+        "name": "Lingard",
+        "long": "Lingard · first-pullback liquidity → order block",
+        "rules_word": "Lingard's rules",
+        "short": "D1 trend, H4 first BOS after an MSS, order block beyond the first pullback, London/NY, 5R",
+        "evidence": ("Spec v22 (real market structure): H4 with the D1 trend 17 trades in 5 years on GBP/USD + gold, "
+                     "−0.39R; H1 56 trades −0.03R. Too few trades to judge; no edge found. Live by Ore's decision."),
+        "report": "backtest/reports/smc_v22.md",
+        "alert": "lingard",
         "practice": False,
     },
 }

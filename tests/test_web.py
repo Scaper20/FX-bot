@@ -3,6 +3,7 @@ import re
 import pandas as pd
 import pytest
 
+from engine.strategies import STRATEGIES
 from web import service
 from tests.conftest import csrf, login
 
@@ -283,45 +284,43 @@ def test_live_setup_chart_has_all_timeframes_and_levels(env):
     assert anon.get(f"/api/chart/setup/{sid}").status_code == 302      # private: login needed
 
 
-def test_order_block_strategy_logged_and_shown_separately(env):
+def test_smc_strategies_logged_and_shown_separately(env):
     app, store, clock = env
     c = app.test_client()
     login(c)
     feed = app.extensions["feed_factory"]()
-    sid = None
-    for day in pd.date_range("2023-03-01", "2023-07-20", freq="1D", tz="UTC"):
-        if day.weekday() >= 5:
+    for t in pd.date_range("2023-03-01", "2023-06-28", freq="5h", tz="UTC"):
+        if t.weekday() >= 5:
             continue
-        service.run_scan(store, feed, day + pd.Timedelta("15h"), trigger="test", counts_credits=False)
-        sid = next((r["id"] for r in store.list_setups(source="live") if r["card"].get("model")), None)
-        if sid:
+        service.run_scan(store, feed, t, trigger="test", counts_credits=False)
+        kinds = {r["card"].get("strategy") for r in store.list_setups(source="live")}
+        if {"smc_ob", "toni"} <= kinds:
             break
-    assert sid, "expected an order-block setup to be logged"
-    page = c.get(f"/setup/{sid}").get_data(as_text=True)
-    assert "H1 order block" in page and "matches the order-block rules" in page and "Range high" not in page
-    assert "watch-only" not in page and "is not reliable" in page        # honest evidence stays shown
-    data = c.get(f"/api/chart/setup/{sid}").get_json()
-    titles = {lv["title"] for lv in data["levels"]}
-    assert {"Entry (order block open)", "Stop", "Target 3R"} <= titles
-    long = store.get_setup(sid)["direction"] == "long"
-    assert ("Bottom of the move" if long else "Top of the move") in titles
-    assert ("Swing high broken (MSS)" if long else "Swing low broken (MSS)") in titles
-    assert "order block" in data["marker_key"]
+    rows = [r for r in store.list_setups(source="live") if r["card"].get("model")]
+    assert rows, "expected SMC setups to be logged"
+    for strat in sorted({r["card"]["strategy"] for r in rows}):
+        sid = next(r["id"] for r in rows if r["card"]["strategy"] == strat)
+        name = STRATEGIES[strat]["name"]
+        page = c.get(f"/setup/{sid}").get_data(as_text=True)
+        assert name in page and "Range high" not in page and "no edge found" in page.lower()   # honest evidence
+        data = c.get(f"/api/chart/setup/{sid}").get_json()
+        titles = {lv["title"] for lv in data["levels"]}
+        assert {"Entry (zone edge)", "Stop", "Target"} <= titles
+        assert any(t.endswith(" level") for t in titles) and "zone" in data["marker_key"]
+        jr = c.get(f"/journal?strategy={strat}").get_data(as_text=True)
+        assert sid in jr and sid not in c.get("/journal?strategy=crt").get_data(as_text=True)
+        assert c.get(f"/?strategy={strat}").status_code == 200
     perf = c.get("/performance").get_data(as_text=True)
-    assert "Live · Order block" in perf and "Live · CRT" in perf and "Live · all strategies together" in perf
-    ob = service.performance(store, "live", "smc_ob")
-    crt = service.performance(store, "live", "crt")
-    both = service.performance(store, "live")
-    assert ob["rows"] >= 1 and ob["rows"] + crt["rows"] == both["rows"]       # split adds up, nothing lost
-    assert ob["groups"]["system"]["setups"] >= 1                               # now recommended
-    home = c.get("/?strategy=smc_ob").get_data(as_text=True)
-    assert "Matches the rules, still actionable · Order block" in home and "CRT armed" not in home
-    assert "Order block: what it's waiting for" in home and "of 3:" in home
-    assert "Order block: what it" not in c.get("/?strategy=crt").get_data(as_text=True)
-    jr = c.get("/journal?strategy=crt").get_data(as_text=True)
-    assert sid not in jr and sid in c.get("/journal?strategy=smc_ob").get_data(as_text=True)
-    plan_page = c.get("/plan").get_data(as_text=True)
-    assert "By strategy" in plan_page and "Order block" in plan_page
+    for s in ("Live · Order block", "Live · Toni Iyke", "Live · Lingard", "Live · CRT", "Live · all strategies together"):
+        assert s in perf
+    total = sum(service.performance(store, "live", k)["rows"] for k in STRATEGIES)
+    assert total == service.performance(store, "live")["rows"]                    # split adds up, nothing lost
+    home = c.get("/").get_data(as_text=True)
+    assert "Smart-money strategies: what they're waiting for" in home and "Step " in home
+    assert "Smart-money strategies" not in c.get("/?strategy=crt").get_data(as_text=True)
+    toni_home = c.get("/?strategy=toni").get_data(as_text=True)
+    assert "Toni Iyke" in toni_home and "CRT armed" not in toni_home
+    assert "By strategy" in c.get("/plan").get_data(as_text=True)
 
 
 def test_zone_trainer_hides_outcome_until_labelled(env):

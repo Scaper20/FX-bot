@@ -16,7 +16,8 @@ from . import mailer
 SUBJECT = "Setup Scanner: "
 
 NY = "America/New_York"
-DEFAULTS = {"new": True, "outcomes": True, "digest": True, "filtered": False, "smc": True, "max_per_day": 30}
+DEFAULTS = {"new": True, "outcomes": True, "digest": True, "filtered": False, "smc": True, "toni": True,
+            "lingard": True, "max_per_day": 30}
 
 
 def kind(card: dict) -> str:

@@ -1,0 +1,98 @@
+{
+ "smc_ob": {
+  "GBPUSD": {
+   "n": 15,
+   "avg_R": -0.75,
+   "win_rate": 0.067,
+   "first": "2021-11-29T15:00:00+00:00",
+   "last": "2025-03-18T10:00:00+00:00",
+   "enough": false,
+   "score": -0.75,
+   "fresh_avg_R": -0.313,
+   "fresh_n": 29
+  },
+  "XAUUSD": {
+   "n": 13,
+   "avg_R": -0.408,
+   "win_rate": 0.154,
+   "first": "2022-10-11T16:00:00+00:00",
+   "last": "2026-10-16T13:00:00+00:00",
+   "enough": false,
+   "score": -0.408,
+   "fresh_avg_R": -0.313,
+   "fresh_n": 29
+  }
+ },
+ "toni_dbos": {
+  "GBPUSD": {
+   "n": 73,
+   "avg_R": 0.339,
+   "win_rate": 0.37,
+   "first": "2021-11-26T05:00:00+00:00",
+   "last": "2026-08-02T23:00:00+00:00",
+   "enough": true,
+   "score": 0.339,
+   "fresh_avg_R": -0.145,
+   "fresh_n": 177
+  },
+  "XAUUSD": {
+   "n": 82,
+   "avg_R": -0.249,
+   "win_rate": 0.244,
+   "first": "2022-02-22T03:00:00+00:00",
+   "last": "2026-10-14T11:00:00+00:00",
+   "enough": true,
+   "score": -0.249,
+   "fresh_avg_R": -0.145,
+   "fresh_n": 177
+  }
+ },
+ "toni_mss": {
+  "GBPUSD": {
+   "n": 82,
+   "avg_R": -0.093,
+   "win_rate": 0.293,
+   "first": "2021-11-29T19:00:00+00:00",
+   "last": "2026-10-06T15:00:00+00:00",
+   "enough": true,
+   "score": -0.093,
+   "fresh_avg_R": -0.204,
+   "fresh_n": 156
+  },
+  "XAUUSD": {
+   "n": 66,
+   "avg_R": -0.223,
+   "win_rate": 0.212,
+   "first": "2022-03-01T21:00:00+00:00",
+   "last": "2026-10-12T15:00:00+00:00",
+   "enough": true,
+   "score": -0.223,
+   "fresh_avg_R": -0.204,
+   "fresh_n": 156
+  }
+ },
+ "lingard": {
+  "GBPUSD": {
+   "n": 11,
+   "avg_R": -0.287,
+   "win_rate": 0.182,
+   "first": "2022-02-07T12:00:00+00:00",
+   "last": "2026-05-11T16:00:00+00:00",
+   "enough": false,
+   "score": -0.287,
+   "fresh_avg_R": 0.384,
+   "fresh_n": 33
+  },
+  "XAUUSD": {
+   "n": 6,
+   "avg_R": -0.579,
+   "win_rate": 0.167,
+   "first": "2022-07-20T20:00:00+00:00",
+   "last": "2026-09-16T20:00:00+00:00",
+   "enough": false,
+   "score": -0.579,
+   "fresh_avg_R": 0.384,
+   "fresh_n": 33
+  }
+ }
+}

@@ -41,17 +41,50 @@
   <p>Killzone, FVG and order block present, both CISD and MSS, mid-timeframe MSS, HTF MSS, MSnR level, sweep candle size and depth. None of them changed results versus chance in any test from 2021 to 2026, so they are information for your judgment, not rules.</p>
   <p class="muted small">Option history: {{ meta.get('trades', '?') }} simulated trades from {{ meta.get('setups', '?') }} setups, {{ meta.get('period', '') }}. 2025–2026 has since been tested too (your all-years decision); see Backtest.</p>
 </section>
-<h2 id="smc_ob" style="margin-top:22px">2 · Order block (H1 order block · D1+H4 bias)</h2>
+<h2 style="margin-top:22px">Market structure (shared by the order block, Toni and Lingard)</h2>
 <section class="card">
-  <h2>What counts as a setup (order block)</h2>
-  <p class="small">A full strategy since 25 Nov 2026 (your decision). Every setup that meets all four rules is recommended, with its own results on <a href="{{ url_for('performance') }}#smc_ob">Performance</a>. <b>Evidence, honestly:</b> {{ strategies.smc_ob.evidence }} So treat its live record, not the backtest, as the real test.</p>
-  <ol>
-    <li><b>Bias:</b> D1 and H4 market structure both point the same way (direction of the last close beyond a confirmed swing high or low).</li>
-    <li><b>Market structure shift:</b> on H1, a candle closes beyond the latest swing low (sells) or swing high (buys) in that direction.</li>
-    <li><b>Entry:</b> limit order at the open of the order block (the last opposite candle at the extreme of the move that took liquidity and left an FVG). Valid for 12 H1 candles.</li>
-    <li><b>Stop:</b> beyond the extreme of the move plus 2 spreads. <b>Target:</b> 3R (before the spread, exactly as tested, so after spread a card can show a little under 1:3). Closed after 3 trading days if neither is hit. No cancel at 50%.</li>
-  </ol>
-  <p class="small"><b>Tracking on Find a setup:</b> for each pair the home page shows which step the strategy is on: step 1, D1 and H4 bias (agree or not); step 2, the H1 swing level an MSS has to close beyond (with distance, and a warning if price is past it before the candle closes); step 3, the setup card with its limit order.</p>
-  <p class="muted small">Session is shown as information only: the backtest didn't need it. The CRT session and direction rules don't apply to this strategy.</p>
+  <p class="small">Rebuilt 27 Nov 2026 after your drawing review. Only the main (external) swings count:</p>
+  <ul class="small">
+    <li><b>BOS</b> = a break of the high (or low) of the current leg, once a pullback has fixed it (2 lower highs after it).</li>
+    <li><b>MSS</b> = a break of the protected swing: the higher low (or lower high) that launched the last BOS. "A break is a break": spike wicks and news candles count.</li>
+    <li>Small swings inside a leg are internal structure and are ignored. Trend = the direction of the last BOS/MSS (D1 and H4 for bias).</li>
+    <li><b>Order block (your definition)</b> = a 2-candle engulfing, or candle + pin bar + engulfing, where the last candle closes beyond the bodies of the one or two before it; the box is drawn from the first candle.</li>
+  </ul>
 </section>
+
+<h2 id="smc_ob" style="margin-top:22px">2 · Order block (H1 order block · D1+H4 trend)</h2>
+<section class="card">
+  <p class="small"><b>Evidence, honestly:</b> {{ strategies.smc_ob.evidence }} Results: <a href="{{ url_for('performance') }}#smc_ob">Performance</a>.</p>
+  <ol>
+    <li><b>Trend:</b> D1 and H4 external trends point the same way.</li>
+    <li><b>MSS</b> on H1 in that direction (body close beyond the protected swing).</li>
+    <li><b>Order block:</b> your 2/3-candle block at the top (sells) or bottom (buys) of the move the MSS came from, complete by the MSS candle.</li>
+    <li><b>Entry:</b> limit at the first candle's near edge, valid 12 H1 candles. <b>Stop:</b> beyond the block / the move's extreme + 2 spreads. <b>Target:</b> 3R. Closed after 5 trading days if neither is hit.</li>
+  </ol>
+</section>
+
+<h2 id="toni" style="margin-top:22px">3 · Toni Iyke (structure → inducement → POI)</h2>
+<section class="card">
+  <p class="small"><b>Evidence, honestly:</b> {{ strategies.toni.evidence }} Official videos and paid-class notes merged into one strategy (the classes are the detailed version).</p>
+  <ol>
+    <li><b>Trend:</b> D1 external trend.</li>
+    <li><b>Structure</b> on H1 with body closes: an <b>MSS</b> (reversal) or a <b>multiple BOS</b> (one leg closes beyond at least 2 swing levels). A single BOS is ignored.</li>
+    <li><b>Inducement:</b> the first pullback after the structure candle, confirmed when a later candle body-closes beyond the structure candle's close.</li>
+    <li><b>POI, his 4 rules:</b> breakers (the bodies of the levels broken) or your order block at the origin; not touched by the inducement leg; the one closest to the inducement.</li>
+    <li><b>Entry:</b> limit at the POI edge (order block: wick end if the wick is shorter than the body, else the body). <b>Stop:</b> beyond the POI + 2 spreads. <b>Target:</b> the swing point (last high/low before the POI is reached). Valid 20 H1 candles; closed after 5 days.</li>
+  </ol>
+</section>
+
+<h2 id="lingard" style="margin-top:22px">4 · Lingard (first-pullback liquidity → order block)</h2>
+<section class="card">
+  <p class="small"><b>Evidence, honestly:</b> {{ strategies.lingard.evidence }}</p>
+  <ol>
+    <li><b>Trend:</b> D1 external trend (stands in for his monthly/weekly top-down).</li>
+    <li><b>Structure</b> on H4 with wick breaks (his rule). After an MSS, the <b>first BOS</b> in the same direction makes its pullback the first-pullback liquidity.</li>
+    <li><b>POI:</b> your 2/3-candle order block just beyond that liquidity (within 1.5 ATR), inside the move that started the trend.</li>
+    <li><b>Entry:</b> limit at its near edge, in London or New York hours. <b>Stop:</b> beyond the block + 2 spreads. <b>Target:</b> 5R (his minimum). Valid 20 H4 candles; closed after 10 days.</li>
+  </ol>
+  <p class="muted small">Not automated: his monthly → weekly top-down, breakers, fake zones and the lower-timeframe confirmation entry. Use the review tags for those.</p>
+</section>
+<p class="small"><b>Tracking on Find a setup:</b> each of these strategies shows, per pair, which step it is on (trend, structure, inducement or pullback), with the level that has to break and how far price is from it.</p>
 {% endblock %}

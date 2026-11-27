@@ -41,7 +41,7 @@
 </details>
 {% endif %}
 
-{% if strat != 'smc_ob' %}
+{% if not strat or strat == 'crt' %}
 <h2 style="margin-top:22px">CRT armed: waiting for the entry trigger</h2>
 {% if d.armed %}
 <ul class="card list">
@@ -70,26 +70,23 @@
 {% endif %}
 
 {% if strat != 'crt' %}
-<h2 style="margin-top:22px">Order block: what it's waiting for</h2>
-{% if d.smc_watch %}
+{% set ws = d.smc_watch | selectattr('strategy', 'defined') | list %}
+{% set ws = ws | selectattr('strategy', 'equalto', strat) | list if strat else ws %}
+<h2 style="margin-top:22px">Smart-money strategies: what they're waiting for</h2>
+{% if ws %}
 <ul class="card list">
-{% for w in d.smc_watch %}
-  <li><b>{{ w.pair }}</b> {% if w.direction %}{{ dir_pill(w.direction) }}{% endif %}
-    <span class="pill">D1 {{ w.bias_d1 }} · H4 {{ w.bias_h4 }}</span><br>
-    {% if w.stage == 'bias' %}
-      <span class="pill">Step 1 of 3: bias</span> D1 and H4 don't agree, so there is no trade direction. The strategy waits until both point the same way.
-    {% elif w.stage == 'next_swing' %}
-      <span class="pill">Step 2 of 3: waiting for a new swing</span> Bias is {{ 'bullish' if w.direction == 'long' else 'bearish' }}, but the latest H1 swing {{ 'high' if w.direction == 'long' else 'low' }} was already broken{% if w.last_mss %} ({{ loc(w.last_mss) }}){% endif %}. Waiting for a new H1 swing {{ 'high' if w.direction == 'long' else 'low' }} to form; it's confirmed 2 candles after it.
-    {% else %}
-      <span class="pill {{ 'warn' if w.beyond_now else '' }}">Step 2 of 3: waiting for the MSS</span>
-      Needs an H1 candle to <b>close {{ 'above' if w.direction == 'long' else 'below' }}</b> the swing {{ 'high' if w.direction == 'long' else 'low' }}
-      <span class="mono">{{ price(w.pair, w.level) }}</span> ({{ loc(w.swing_time, '%a %H:%M') }}). Price now <span class="mono">{{ price(w.pair, w.price) }}</span>,
-      {% if w.beyond_now %}<b>past it right now</b>: it counts only if the H1 candle closes there ({{ loc(w.closes_at, '%H:%M') }}).{% else %}{{ '%.1f pips' % (w.distance * 10000) if w.pair == 'GBPUSD' else '$%.2f' % w.distance }} away.{% endif %}
+{% for w in ws %}
+  <li><b>{{ w.pair }}</b> <span class="pill strat">{{ strategies[w.strategy].name }}</span> {% if w.direction %}{{ dir_pill(w.direction) }}{% endif %}
+    <span class="pill">{{ w.bias }}</span><br>
+    <span class="pill {{ 'warn' if w.beyond_now else '' }}">Step {{ w.step }} of {{ w.steps }}: {{ w.title }}</span>
+    {{ w.text }}
+    {% if w.level is not none and w.distance is not none %} Price now <span class="mono">{{ price(w.pair, w.price) }}</span>,
+      {% if w.beyond_now %}<b>past the level right now</b>: it counts only if the candle closes there ({{ loc(w.closes_at, '%H:%M') }}).{% else %}{{ '%.1f pips' % (w.distance * 10000) if w.pair == 'GBPUSD' else '$%.2f' % w.distance }} away.{% endif %}
     {% endif %}</li>
 {% endfor %}
 </ul>
-<p class="muted small">Step 3 of 3: after the MSS, a limit order at the order block's open appears above as a setup card (only if a valid order block exists and the stop and entry make sense). Nothing to do before then; this is a heads-up.</p>
-{% else %}<p class="muted">No order-block status yet: it appears after the next scan.</p>{% endif %}
+<p class="muted small">Final step: when every rule is met, the limit order appears above as a setup card. These lines are heads-ups only; nothing here is logged.</p>
+{% else %}<p class="muted">No status yet: it appears after the next scan.</p>{% endif %}
 {% endif %}
 
 {% if d.in_play %}

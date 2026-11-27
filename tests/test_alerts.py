@@ -101,4 +101,6 @@ def test_each_strategy_has_its_own_new_setup_switch():
     assert alerts.wanted(crt, p) and not alerts.wanted(ob, p)
     p = alerts.prefs({"alerts": {"new": False}})
     assert not alerts.wanted(crt, p) and alerts.wanted(ob, p)
-    assert alerts.kind(ob) == "H1 order block · D1+H4 bias" and alerts.kind(crt) == "H4 CRT"
+    assert alerts.kind(ob) == "H1 order block · D1+H4 trend" and alerts.kind(crt) == "H4 CRT"
+    toni = {"recommended": True, "strategy": "toni", "model": "toni"}
+    assert alerts.wanted(toni, alerts.prefs({})) and not alerts.wanted(toni, alerts.prefs({"alerts": {"toni": False}}))

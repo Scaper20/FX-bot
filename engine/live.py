@@ -19,7 +19,7 @@ from . import config as K
 from .calendar import next_closes
 from .setups import Market, find_orders, track_order
 
-ENGINE_VERSION = "v1.5"   # v1.4: C2 closes inside C1's body; v1.5: order-block strategy is a full strategy (25 Nov 2026)
+ENGINE_VERSION = "v1.6"   # v1.4: C2 closes inside C1's body; v1.5: order-block strategy is a full strategy (25 Nov 2026)
 STATS_FILE = Path(__file__).resolve().parent / "data" / "pattern_stats.json"
 MGMTS = ("M1_T1", "M1_T2", "M1_T3", "M2_T2", "M2_T3")
 LIVE_STOPS = ("S1p", "S1a", "S2")
@@ -28,14 +28,16 @@ SHRINK_K = 50            # trades worth of "pull towards the average" when ranki
 
 ENTRY_LABEL = {"E1": "Market, at the trigger candle's close", "E2": "Limit at the FVG's near edge",
                "E3": "Limit at the FVG's middle", "E4": "Limit at the order block's open",
-               "E5": "Limit at the order block's middle"}
+               "E5": "Limit at the order block's middle", "Z": "Limit at the zone's near edge"}
 STOP_LABEL = {"S1": "Sweep extreme", "S1p": "Sweep extreme + 2 spreads", "S1a": "Sweep extreme + 0.1 ATR",
-              "S2": "Tight: FVG / order-block edge"}
+              "S2": "Tight: FVG / order-block edge", "SZ": "Beyond the zone + 2 spreads"}
 MGMT_LABEL = {"M1_T1": "All out at the 50% level", "M1_T2": "All out at the opposite side",
               "M1_T3": "All out at the next swing beyond", "M2_T2": "Half at 50%, stop to entry, rest at opposite side",
-              "M2_T3": "Half at 50%, stop to entry, rest at next swing"}
+              "M2_T3": "Half at 50%, stop to entry, rest at next swing", "T3R": "All out at 3R",
+              "T5R": "All out at 5R", "TLIQ": "All out at the structure target (liquidity)"}
 TRIGGER_LABEL = {"CISD": "CISD (close beyond the open of the run that made the sweep)",
-                 "MSS": "MSS (close beyond the last swing before the sweep)"}
+                 "MSS": "MSS (close beyond the last swing before the sweep)",
+                 "SMC": "Market structure (MSS / BOS on the main swings)"}
 
 
 @lru_cache(maxsize=1)
@@ -347,10 +349,8 @@ def scan(markets: dict[str, Market], spreads: dict[str, float]) -> dict:
         for c in scan_pair(mkt, pair, spreads[pair]):
             (ready if c["state"] == "ready" else armed).append(c)
         watch += watch_pair(mkt, pair)
-        ready += scan_smc_pair(mkt, pair, spreads[pair])      # order-block strategy (spec v16)
-        w = watch_smc_pair(mkt, pair)
-        if w:
-            smc_watch.append(w)
+        ready += scan_smc_pair(mkt, pair, spreads[pair])      # SMC strategies (spec v22)
+        smc_watch += watch_smc_pair(mkt, pair)          # one heads-up per SMC strategy
 
     def card_key(c):
         b = c["options"][0] if c["options"] else None
