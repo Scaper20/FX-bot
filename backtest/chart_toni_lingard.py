@@ -7,8 +7,8 @@ Audit (written separately from the finder): for every trade, on its own candles,
   candle's close; the POI body was not reached between them (unmitigated) and sits beyond the inducement extreme;
   the target is the extreme between them; stop beyond entry by more than 2 spreads.
 - Lingard: the liquidity point is a real 5-bar swing, known by the decision candle; the BOS candle's wick went
-  beyond an earlier swing; the order block's near edge is beyond the liquidity and within 1.5 ATR of it; the
-  decision is in London/NY hours.
+  beyond an earlier swing; the order block's near edge is beyond the liquidity and within 1.5 ATR of it. (Lingard's London/NY rule is
+  applied when the report builds its rows, so it is not checked per trade.)
 Charts: one example per model/variant on GBP/USD, GMT+0.
 """
 from __future__ import annotations
@@ -77,8 +77,6 @@ def audit(d: pd.DataFrame, frames: dict) -> dict:
                     bad("lingard: order block not beyond / near the liquidity")
                 if not (l[ob] >= e - 1e-9 and ob < max(ph, bos)):
                     bad("lingard: entry is not the order block's near edge")
-                if not r.session:
-                    bad("lingard: outside London/NY")
     return probs
 
 
