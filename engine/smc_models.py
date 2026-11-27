@@ -166,3 +166,81 @@ def lingard_setups(o, h, l, c, events, atr) -> list[dict]:
                     "line": (ev["broken"], j, ev["level"], "BOS"), "valid": VALID, "liquidity": float(liq_px),
                     "pullback": p})
     return out
+
+
+# ------------------------------------------------------------------ Ore's liquidity model (spec v24)
+
+VALID_ORE = 30
+
+
+def _zone_entry(lo, hi, d):
+    """Near edge and far edge of a zone for a trade in direction d (sell: enter at the bottom, stop at the top)."""
+    return (lo, hi) if d == -1 else (hi, lo)
+
+
+def ore_reversal_setups(o, h, l, c, events) -> list[dict]:
+    """MSS, then the next event is a BOS the same way; its protected swing is Liq (the trap). POI above Liq (sell):
+    OB = Ore's block at the top of the move; BB = Ore's opposite block at the swing the MSS broke (failed OB).
+    Limit placed at the BOS close."""
+    out = []
+    for e1, e2 in zip(events[:-1], events[1:]):
+        if e1["kind"] != "MSS" or e2["kind"] != "BOS" or e2["dir"] != e1["dir"]:
+            continue
+        d, j = e1["dir"], e2["j"]
+        li = e2["protected"]
+        liq = h[li] if d == -1 else l[li]
+        cands = []
+        top = e1["protected"]
+        ob = ore_order_block(o, h, l, c, top, d, ahead=max(0, min(2, e1["j"] - top)))
+        if ob:
+            lo, hi = _zone_low_high(ob)
+            ext = h[top] if d == -1 else l[top]
+            e = ob["near"]
+            far = max(hi, ext) if d == -1 else min(lo, ext)
+            cands.append(("OB", e, far, (ob["first"], ob["last"], lo, hi), ob["kind"]))
+        s = e1["broken"]
+        bb = ore_order_block(o, h, l, c, s, -d, ahead=max(0, min(2, e1["j"] - s)))
+        if bb:
+            lo, hi = _zone_low_high(bb)
+            e, far = _zone_entry(lo, hi, d)
+            cands.append(("BB", e, far, (bb["first"], bb["last"], lo, hi), bb["kind"]))
+        for name, e, far, zone, shape in cands:
+            beyond_liq = e > liq if d == -1 else e < liq
+            ahead_px = e > c[j] if d == -1 else e < c[j]
+            right = far > e if d == -1 else far < e
+            if not (beyond_liq and ahead_px and right):
+                continue
+            out.append({"model": "ore_rev", "variant": name, "shape": shape, "dir": d, "decision": j, "entry": float(e),
+                        "far": float(far), "liq": None, "zone": zone, "line": (e1["broken"], e1["j"], e1["level"], "MSS"),
+                        "valid": VALID_ORE, "liq_idx": li, "liq_px": float(liq), "top": top,
+                        "bos": (e2["broken"], j, e2["level"])})
+    return out
+
+
+def ore_continuation_setups(o, h, l, c, events) -> list[dict]:
+    """Two BOS in a row the same way; Liq = the second BOS's pullback; BB = Ore's opposite block at the swing the
+    first BOS broke (else that swing candle wick to wick), on the far side of Liq. Limit placed at the second BOS."""
+    out = []
+    for a, b in zip(events[:-1], events[1:]):
+        if a["kind"] != "BOS" or b["kind"] != "BOS" or a["dir"] != b["dir"]:
+            continue
+        d, j = b["dir"], b["j"]
+        li = b["protected"]
+        liq = l[li] if d == 1 else h[li]
+        s = a["broken"]
+        bb = ore_order_block(o, h, l, c, s, -d, ahead=max(0, min(2, a["j"] - s)))
+        if bb:
+            lo, hi = _zone_low_high(bb)
+            zone, shape = (bb["first"], bb["last"], lo, hi), bb["kind"]
+        else:
+            lo, hi = float(l[s]), float(h[s])
+            zone, shape = (s, s, lo, hi), "swing candle"
+        e, far = _zone_entry(lo, hi, d)
+        beyond_liq = e < liq if d == 1 else e > liq
+        ahead_px = e < c[j] if d == 1 else e > c[j]
+        if not (beyond_liq and ahead_px):
+            continue
+        out.append({"model": "ore_cont", "variant": "BB", "shape": shape, "dir": d, "decision": j, "entry": float(e),
+                    "far": float(far), "liq": None, "zone": zone, "line": (b["broken"], j, b["level"], "BOS"),
+                    "valid": VALID_ORE, "liq_idx": li, "liq_px": float(liq), "first_bos": (a["broken"], a["j"], a["level"])})
+    return out
