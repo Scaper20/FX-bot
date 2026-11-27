@@ -43,9 +43,11 @@ def parse(payload: dict) -> pd.DataFrame:
 
 
 def fetch(pair: str, tf: str, outputsize: int | None = None, timeout: float = 20.0,
-          opener=urllib.request.urlopen) -> pd.DataFrame:
+          opener=urllib.request.urlopen, end_date: pd.Timestamp | None = None) -> pd.DataFrame:
     params = {"symbol": SYMBOLS[pair], "interval": INTERVAL[tf], "outputsize": outputsize or OUTPUTSIZE[tf],
               "timezone": "UTC", "order": "ASC", "format": "JSON"}
+    if end_date is not None:                                      # older history (D1 backfill)
+        params["end_date"] = pd.Timestamp(end_date).tz_convert("UTC").strftime("%Y-%m-%d %H:%M:%S")
     req = urllib.request.Request(BASE + "?" + urllib.parse.urlencode(params),
                                  headers={"Authorization": f"apikey {_key()}", "User-Agent": "crt-scanner/1.3"})
     try:
@@ -65,6 +67,12 @@ class TwelveDataFeed:
     def __init__(self, opener=urllib.request.urlopen):
         self.opener = opener
         self.calls = 0
+
+    def history_h1(self, pair: str, end: pd.Timestamp) -> pd.DataFrame:
+        """Up to 5,000 H1 candles ending before `end` (1 credit): builds the long D1 history."""
+        self.calls += 1
+        df = fetch(pair, "H1", outputsize=5000, opener=self.opener, end_date=end)
+        return df[df.index < end]
 
     def frames(self, pair: str, now: pd.Timestamp | None = None) -> dict[str, pd.DataFrame]:
         out = {}

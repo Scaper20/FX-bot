@@ -84,6 +84,12 @@ class Market:
             frames[tf] = df[df["close_time_utc"] <= now]
         for tf in ("H4", "D1"):
             df = resample_from(frames["H1"], tf, day_close)
+            if tf == "D1" and base.get("D1_hist") is not None and len(base["D1_hist"]) and len(df) > 1:
+                # The feed's 2,500 H1 candles give only ~4 months of D1; older days come from the stored D1
+                # history (built the same way), so the D1 trend matches the backtests (27 Nov 2026).
+                first_full = df.index[1]                   # the first H1-built day may be partial
+                old = with_close_times(base["D1_hist"][["open", "high", "low", "close"]], "D1", day_close)
+                df = pd.concat([old[old.index < first_full], df[df.index >= first_full]])
             frames[tf] = df[df["close_time_utc"] <= now]
         mkt = cls(None, frames=frames, day_close=day_close)
         mkt.live = True

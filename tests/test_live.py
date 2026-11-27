@@ -278,3 +278,29 @@ def test_smc_long_orders_fill_when_price_trades_through(feed):
                         assert mult is None or st["R"] == pytest.approx(mult * abs(op["target"] - op["entry"]) / abs(op["entry"] - op["stop"]), abs=0.6)
                     checked += 1
     assert checked > 0, "no long SMC order traded through in the replay"
+
+
+def test_stored_d1_history_makes_live_d1_trend_match_full_history():
+    """27 Nov 2026: the feed's 2,500 H1 candles give ~4 months of D1, so the live D1 trend differed from the
+    backtests' in ~14% of smart-money setups. With the stored D1 history merged in, it matches the full history."""
+    from engine.candles import resample
+    from engine.smc_live import trend
+    pair = "GBPUSD"
+    m1 = clean(load_m1_csv(K.PAIRS[pair]["file"]))[0]
+    m1 = m1[(m1.index >= "2022-01-01") & (m1.index < "2024-01-01")]
+    full = Market(m1, data_end=m1.index[-1] + pd.Timedelta("1min"))
+    feed = ReplayFeed({pair: m1})
+    d1_all = resample(m1, "D1", "utc0")[["open", "high", "low", "close"]]
+    differ_without = checked = 0
+    for t in pd.date_range("2023-03-01", "2023-12-20", freq="7D", tz="UTC") + pd.Timedelta("13h"):
+        fr = feed.frames(pair, t)
+        hist = d1_all[d1_all.index < t - pd.Timedelta("100D")]                # stored days, older than the feed
+        with_h = Market.from_frames({**fr, "D1_hist": hist}, t)
+        without = Market.from_frames(fr, t)
+        assert trend(with_h, "D1", t.value) == trend(full, "D1", t.value)
+        differ_without += trend(without, "D1", t.value) != trend(full, "D1", t.value)
+        checked += 1
+        old = with_h.frames["D1"]
+        assert old.index.is_monotonic_increasing and not old.index.has_duplicates
+        assert (old["close_time_utc"] <= t).all()
+    assert checked > 30

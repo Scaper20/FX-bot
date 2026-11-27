@@ -403,3 +403,28 @@ def test_practice_strategy_picker(env):
     assert "What happened" in res and f"strategy={sid}" in res
     assert service.practice_progress(store, sid)["done"] == 1 and service.practice_progress(store, "crt")["done"] == 0
     assert all(service.practice_strategy(p) == "crt" for p in community.order_for("someone"))
+
+
+def test_scan_stores_and_reuses_d1_history(env):
+    app, store, clock = env
+    service.run_scan(store, app.extensions["feed_factory"](), clock["now"], trigger="test", counts_credits=False)
+    h1 = service.d1_history(store, "GBPUSD")
+    assert h1 is not None and len(h1) > 50
+    clock["now"] = clock["now"] + pd.Timedelta("1D")
+    service.run_scan(store, app.extensions["feed_factory"](), clock["now"], trigger="test", counts_credits=False)
+    h2 = service.d1_history(store, "GBPUSD")
+    assert h2.index[0] <= h1.index[0] and len(h2) >= len(h1)                  # history kept (and backfilled)
+
+
+def test_short_d1_history_is_backfilled_one_call_per_scan(env):
+    app, store, clock = env
+    feed = app.extensions["feed_factory"]()
+    service.run_scan(store, feed, clock["now"], trigger="test", counts_credits=False)
+    n0 = {p: len(service.d1_history(store, p)) for p in ("GBPUSD", "XAUUSD")}
+    assert all(n < service.D1_HIST_MIN for n in n0.values())                  # replay data starts 2023-01
+    service.run_scan(store, feed, clock["now"] + pd.Timedelta("15min"), trigger="test", counts_credits=False)
+    n1 = {p: len(service.d1_history(store, p)) for p in ("GBPUSD", "XAUUSD")}
+    grew = [p for p in n0 if n1[p] > n0[p]]
+    assert len(grew) == 1                                                       # one backfill call per scan
+    h = service.d1_history(store, grew[0])
+    assert h.index.is_monotonic_increasing and not h.index.has_duplicates

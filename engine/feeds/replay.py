@@ -14,6 +14,11 @@ class ReplayFeed:
         self.m1 = m1_by_pair
         self.day_close = day_close
 
+    def history_h1(self, pair: str, end: pd.Timestamp) -> pd.DataFrame:
+        m1 = self.m1[pair]
+        part = m1[(m1.index >= end - pd.Timedelta("300D")) & (m1.index < end)]
+        return resample(part, "H1", self.day_close)[["open", "high", "low", "close"]].tail(5000)
+
     def frames(self, pair: str, now: pd.Timestamp) -> dict[str, pd.DataFrame]:
         m1 = self.m1[pair]
         out = {}
