@@ -69,6 +69,7 @@ class MemoryStore:
         self.db.setdefault("community_emails", [])
         self.db.setdefault("zone_labels", [])
         self.db.setdefault("loss_reviews", [])
+        self.db.setdefault("kv_cache", {})
 
     def _save(self):
         if self.path:
@@ -173,6 +174,15 @@ class MemoryStore:
 
     def list_loss_reviews(self) -> list[dict]:
         return copy.deepcopy(sorted(self.db["loss_reviews"], key=lambda r: r["created_at"]))
+
+    # small cache (news calendar)
+    def get_cache(self, key: str):
+        return copy.deepcopy(self.db["kv_cache"].get(key))
+
+    def set_cache(self, key: str, data) -> None:
+        with self.lock:
+            self.db["kv_cache"][key] = copy.deepcopy(data)
+            self._save()
 
     # scans
     def add_scan(self, row: dict) -> None:
@@ -414,6 +424,15 @@ class SupabaseStore:
 
     def list_loss_reviews(self) -> list[dict]:
         return self._req("GET", "loss_reviews", {"select": "*", "order": "created_at.asc", "limit": "5000"}) or []
+
+    # small cache (news calendar)
+    def get_cache(self, key: str):
+        rows = self._req("GET", "kv_cache", {"key": f"eq.{key}", "select": "data"}) or []
+        return rows[0]["data"] if rows else None
+
+    def set_cache(self, key: str, data) -> None:
+        self._req("POST", "kv_cache", {"on_conflict": "key"}, body={"key": key, "data": data, "updated_at": now_iso()},
+                  prefer="resolution=merge-duplicates,return=minimal")
 
     # scans
     def add_scan(self, row: dict) -> None:

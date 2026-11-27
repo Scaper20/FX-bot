@@ -23,7 +23,7 @@ from engine.live import ENGINE_VERSION, TRIGGER_LABEL, load_stats
 from engine.sessions import LONDON, NEW_YORK
 from engine.strategies import STRATEGIES, strategy_of
 
-from . import chartdata, charts, community, insights, losses, mailer, plan, reminders, service, zones
+from . import chartdata, charts, community, insights, losses, mailer, plan, prop, reminders, service, zones
 from .store import StoreError, from_env, merged_settings
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -114,7 +114,8 @@ def create_app(store=None, feed=None, now_fn=None) -> Flask:
         return dict(loc=loc, price=price, pct=pct, rfmt=rfmt, csrf_token=csrf_token, settings=st,
                     labels=service.LABELS, reasons=service.REASONS, strategies=STRATEGIES, strategy_of=strategy_of, trigger_label=TRIGGER_LABEL,
                     engine_version=ENGINE_VERSION, clock=session_clock(now(), tz), nav=request.endpoint,
-                    lot_size=lambda pair, e, s: service.lot_size(st, pair, e, s), dev=app.config["DEV"])
+                    lot_size=lambda pair, e, s: service.lot_size(st, pair, e, s), dev=app.config["DEV"],
+                    prop_plan=prop.plan(st), prop_lot=lambda pair, e, s: prop.lot(st, pair, e, s))
 
     # ------------------------------------------------------------ auth
     @app.route("/login", methods=["GET", "POST"])
@@ -152,8 +153,11 @@ def create_app(store=None, feed=None, now_fn=None) -> Flask:
             scans = store().recent_scans(1)
         except StoreError as e:
             return render_template("error.html", message=str(e)), 503
+        st = settings()
+        pinfo = ({"s": prop.status(st), "news": prop.upcoming(store(), now(), hours=3)}
+                 if prop.plan(st)["on"] else None)
         return render_template("home.html", d=data, todo=todo, credits=credits, calls=CALLS_PER_SCAN,
-                               last_any=scans[0] if scans else None, strat=strat)
+                               last_any=scans[0] if scans else None, strat=strat, pinfo=pinfo)
 
     @app.route("/scan", methods=["POST"])
     @login_required
@@ -374,6 +378,56 @@ def create_app(store=None, feed=None, now_fn=None) -> Flask:
     def train_stats():
         return render_template("train_stats.html", st=zones.stats(store()), kinds=zones.KINDS, labels=zones.LABELS)
 
+    # ------------------------------------------------------------ prop mode
+    @app.route("/prop", methods=["GET", "POST"])
+    @login_required
+    def prop_page():
+        st = settings()
+        p = prop.plan(st)
+        if request.method == "POST":
+            check_csrf()
+            f = request.form
+            new = dict(p)
+            if f.get("what") == "plan":
+                new.update({"on": bool(f.get("on")), "firm": (f.get("firm") or p["firm"])[:80],
+                            "size": _num(f.get("size"), p["size"]), "target_pct": _num(f.get("target_pct"), p["target_pct"]),
+                            "daily_pct": _num(f.get("daily_pct"), p["daily_pct"]),
+                            "trailing_pct": _num(f.get("trailing_pct"), p["trailing_pct"]),
+                            "risk_pct": _num(f.get("risk_pct"), p["risk_pct"]),
+                            "leverage": {"GBPUSD": _num(f.get("lev_GBPUSD"), 30), "XAUUSD": _num(f.get("lev_XAUUSD"), 10)},
+                            "strategies": [s for s in f.getlist("strategies") if s in STRATEGIES],
+                            "news_min": int(_num(f.get("news_min"), 2))})
+                ok = (new["size"] > 0 and 0 < new["risk_pct"] <= 5 and 0 < new["daily_pct"] <= 20
+                      and 0 < new["trailing_pct"] <= 30 and 0 < new["target_pct"] <= 50)
+            else:
+                new.update({"balance": _num(f.get("balance"), p["balance"]), "peak": _num(f.get("peak"), p["peak"]),
+                            "day_start": _num(f.get("day_start"), p["day_start"]),
+                            "days_traded": int(_num(f.get("days_traded"), p["days_traded"]))})
+                if f.get("what") == "reset":
+                    new.update({"balance": new["size"], "peak": new["size"], "day_start": new["size"], "days_traded": 0,
+                                "started": now().date().isoformat()})
+                new["peak"] = max(new["peak"], new["balance"])
+                ok = new["balance"] > 0 and new["day_start"] > 0
+            if ok:
+                store().save_settings({**st, "prop": new})
+                flash("Prop account saved.", "ok")
+            else:
+                flash("Some values look wrong; nothing saved.", "error")
+            return redirect(url_for("prop_page"))
+        return render_template("prop.html", p=p, s=prop.status(st), news=prop.upcoming(store(), now(), hours=72),
+                               news_fetched=prop.news_fetched(store()), nav="prop")
+
+    @app.route("/prop/news-refresh", methods=["POST"])
+    @login_required
+    def prop_news_refresh():
+        check_csrf()
+        c = store().get_cache(prop.NEWS_KEY) or {}
+        if c:
+            store().set_cache(prop.NEWS_KEY, {**c, "fetched": "2000-01-01T00:00:00+00:00"})
+        note = prop.refresh_news(store(), now())
+        flash(note or "News calendar is up to date.", "ok")
+        return redirect(url_for("prop_page"))
+
     # ------------------------------------------------------------ losses to review
     def _loss_filters() -> dict:
         a = request.args
@@ -485,6 +539,7 @@ def create_app(store=None, feed=None, now_fn=None) -> Flask:
                               "owner_every_days": min(14, max(1, int(_num(f.get("rem_owner_every"), 2))))},
                 "last_owner_nudge": st.get("last_owner_nudge", ""),
                 "last_digest": st.get("last_digest", ""), "alert_count": st.get("alert_count", {}),
+                "prop": st.get("prop", {}),
             }
             if not (0 < new["spreads"]["GBPUSD"] < 0.01 and 0 < new["spreads"]["XAUUSD"] < 20
                     and 0 < new["risk_pct"] <= 10 and new["balance"] > 0):

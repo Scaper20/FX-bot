@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}Prop account · Setup Scanner{% endblock %}
+{% block content %}
+<div class="row spread">
+  <h1>Prop account</h1>
+  <span class="small">{% if p.on %}<span class="pill ok">prop mode on</span>{% else %}<span class="pill">prop mode off</span>{% endif %} · {{ p.firm }}</span>
+</div>
+<p class="muted">Your challenge in one place: how far you are from the target and from each limit, the most the next trade may risk, and news windows to avoid. The plan (spec v29): trade only {% for sid in p.strategies %}{{ strategies[sid].name if sid in strategies else sid }}{{ ' and ' if not loop.last }}{% else %}no strategy chosen{% endfor %} at {{ p.risk_pct }}% risk. In the 2022–2026 simulation that passed about 31% of challenges within 6 months: expect several attempts, and the sample behind it is small.</p>
+
+{% if p.on %}
+<section class="card">
+  <h2>Where the challenge stands</h2>
+  <div class="bar" aria-hidden="true"><i style="width:{{ (100 * s.progress) | round(1) }}%"></i></div>
+  <div class="kv">
+    <div><span>Balance</span><b>${{ '%.2f' % p.balance }}</b></div>
+    <div><span>Target</span><b>${{ '%.2f' % s.target }}</b></div>
+    <div><span>Still to make</span><b>${{ '%.2f' % s.to_target if s.to_target > 0 else 0 }}</b></div>
+    <div><span>Trading days</span><b>{{ s.days_traded }} of 2 minimum</b></div>
+    <div><span>Daily limit (until 22:00 London)</span><b>${{ '%.2f' % s.daily_floor }}</b></div>
+    <div><span>Room to the daily limit</span><b>${{ '%.2f' % s.daily_room }}</b></div>
+    <div><span>Trailing floor ({{ p.trailing_pct }}% below your high)</span><b>${{ '%.2f' % s.trail_floor }}</b></div>
+    <div><span>Room to the trailing floor</span><b>${{ '%.2f' % s.trail_room }}</b></div>
+  </div>
+  {% if s.passed %}<p class="note" role="status">Target reached with {{ s.days_traded }} trading days: close everything and wait for the firm's review (up to 3 working days).</p>
+  {% elif s.room <= 0 %}<p class="note" role="status">By these numbers a limit has been reached. Check your account on the firm's dashboard.</p>
+  {% else %}
+  <p><b>Next trade: risk at most ${{ '%.2f' % s.next_risk }}</b>{% if s.warn %} <span class="pill warn">less than your usual ${{ '%.2f' % s.risk_amt }}</span> because the {{ s.binding }} limit is close (${{ '%.2f' % s.room }} of room; 10% kept as a buffer){% else %} (your usual {{ p.risk_pct }}%). About {{ s.losses_left }} full loss{{ 'es fit' if s.losses_left != 1 else ' fits' }} before the {{ s.binding }} limit{% endif %}.</p>
+  {% endif %}
+  <form method="post" action="{{ url_for('prop_page') }}" class="row" style="gap:8px;flex-wrap:wrap;align-items:flex-end">
+    <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+    <label>Balance now<input name="balance" inputmode="decimal" value="{{ p.balance }}" style="max-width:130px"></label>
+    <label>Balance at the last 22:00 London reset<input name="day_start" inputmode="decimal" value="{{ p.day_start }}" style="max-width:130px"></label>
+    <label>Highest balance or equity so far<input name="peak" inputmode="decimal" value="{{ p.peak }}" style="max-width:130px"></label>
+    <label>Trading days<input name="days_traded" inputmode="numeric" value="{{ p.days_traded }}" style="max-width:80px"></label>
+    <button class="btn small" type="submit" name="what" value="tracker">Update</button>
+    <button class="btn small ghost" type="submit" name="what" value="reset">Start a new challenge</button>
+  </form>
+  <p class="small muted">Copy these from your Equity Edge dashboard. "Highest equity" includes open profit: the firm's floor follows it, so a trade that ran +2R and came back still lifts the floor.</p>
+</section>
+
+<section class="card">
+  <h2>High-impact news (no opening or closing within {{ p.news_min }} minutes)</h2>
+  {% if news %}
+  <div class="tablewrap"><table class="rtable">
+    <thead><tr><th>When (GMT+0)</th><th>Currency</th><th>Event</th><th>Blocked window</th></tr></thead>
+    <tbody>{% for e in news %}<tr><td data-label="When">{{ loc(e.time, '%a %d %b %H:%M') }}{% if e.in_min < 120 %} <span class="pill warn">in {{ e.in_min }} min</span>{% endif %}</td>
+      <td data-label="Currency">{{ e.currency }}</td><td data-label="Event">{{ e.title }}</td>
+      <td data-label="Blocked">{{ loc(e.time, '%H:%M') }} ± {{ p.news_min }} min{% if e.currency == 'USD' %} · all pairs{% endif %}</td></tr>{% endfor %}</tbody>
+  </table></div>
+  {% else %}<p class="muted">No high-impact USD or GBP news in the next 3 days{% if not news_fetched %}, or the calendar hasn't loaded yet{% endif %}.</p>{% endif %}
+  <p class="small muted">Limit orders that could fill, and stops or targets that could be hit, inside a window count as trades: move or cancel them first. USD news blocks every pair. Calendar: ForexFactory weekly feed{% if news_fetched %}, updated {{ loc(news_fetched) }}{% endif %}.</p>
+  <form method="post" action="{{ url_for('prop_news_refresh') }}"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><button class="btn small ghost" type="submit">Refresh the calendar now</button></form>
+</section>
+{% endif %}
+
+<section class="card">
+  <h2>Account and plan</h2>
+  <form method="post" action="{{ url_for('prop_page') }}">
+    <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+    <label class="row" style="color:inherit;margin:4px 0"><input type="checkbox" name="on" value="1" style="width:auto" {{ 'checked' if p.on }}> Prop mode on (prop lot sizes on every setup, only the plan's strategies emailed, news warnings)</label>
+    <div class="row" style="gap:8px;flex-wrap:wrap">
+      <label>Firm / account<input name="firm" value="{{ p.firm }}"></label>
+      <label>Account size ($)<input name="size" inputmode="decimal" value="{{ p.size }}" style="max-width:110px"></label>
+      <label>Profit target %<input name="target_pct" inputmode="decimal" value="{{ p.target_pct }}" style="max-width:80px"></label>
+      <label>Daily loss %<input name="daily_pct" inputmode="decimal" value="{{ p.daily_pct }}" style="max-width:80px"></label>
+      <label>Trailing max loss %<input name="trailing_pct" inputmode="decimal" value="{{ p.trailing_pct }}" style="max-width:80px"></label>
+      <label>Risk per trade %<input name="risk_pct" inputmode="decimal" value="{{ p.risk_pct }}" style="max-width:80px"></label>
+      <label>Leverage GBP/USD 1:<input name="lev_GBPUSD" inputmode="numeric" value="{{ p.leverage.GBPUSD }}" style="max-width:70px"></label>
+      <label>Leverage gold 1:<input name="lev_XAUUSD" inputmode="numeric" value="{{ p.leverage.XAUUSD }}" style="max-width:70px"></label>
+      <label>News window (min)<input name="news_min" inputmode="numeric" value="{{ p.news_min }}" style="max-width:70px"></label>
+    </div>
+    <fieldset><legend>Strategies in the plan</legend>
+      {% for sid, sdef in strategies.items() %}<label class="row" style="color:inherit;margin:2px 0"><input type="checkbox" name="strategies" value="{{ sid }}" style="width:auto" {{ 'checked' if sid in p.strategies }}> {{ sdef.name }}{% if sid in ('ore_poi', 'irl_erl') %} <span class="small muted">(the plan)</span>{% endif %}</label>{% endfor %}
+    </fieldset>
+    <button class="btn" type="submit" name="what" value="plan">Save the plan</button>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Equity Edge rules to keep in mind</h2>
+  <ul style="margin:0;padding-left:18px">
+    <li>Daily loss {{ p.daily_pct | round(1) | string | replace('.0', '') }}% of the balance at the reset, which is at <b>22:00 London</b>. Closed P&amp;L, swaps and commissions count.</li>
+    <li>Maximum loss {{ p.trailing_pct | round(1) | string | replace('.0', '') }}% <b>trailing your highest balance or equity</b>; it never stops trailing.</li>
+    <li>Target {{ p.target_pct | round(1) | string | replace('.0', '') }}% of the starting balance; at least 2 trading days; no time limit.</li>
+    <li><b>No hedging</b>: never hold a buy and a sell on the same pair. If two strategies disagree, take only the first.</li>
+    <li>Place every trade by hand. EAs, trade copiers, signal bots and trade-management services are not allowed.</li>
+    <li>Leverage 1:{{ p.leverage.GBPUSD }} on GBP/USD and 1:{{ p.leverage.XAUUSD }} on gold: a tight-stop gold trade can use most of the margin, so the site caps prop lot sizes ("capped").</li>
+    <li>Weekend holding is allowed. Funded: 80% of profit, payouts every 14 days.</li>
+  </ul>
+  <p class="small muted">From the firm's "Trading Rules and Guidelines" (read 27 Nov 2026). The firm's own rules win if they change.</p>
+</section>
+{% endblock %}

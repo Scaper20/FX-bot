@@ -1,6 +1,15 @@
 {% extends "base.html" %}
 {% from "_macros.html" import summary_card, dir_pill with context %}
 {% block content %}
+{% if pinfo %}
+<section class="note" style="margin-bottom:12px" aria-label="Prop account">
+  <b>Prop mode</b> · {{ prop_plan.firm }} · balance ${{ '%.2f' % prop_plan.balance }}, ${{ '%.2f' % (pinfo.s.to_target if pinfo.s.to_target > 0 else 0) }} to the target ·
+  next trade risk at most <b>${{ '%.2f' % pinfo.s.next_risk }}</b>{% if pinfo.s.warn %} (a limit is close){% endif %} ·
+  only {% for sid in prop_plan.strategies %}{{ strategies[sid].name if sid in strategies else sid }}{{ ', ' if not loop.last }}{% endfor %}.
+  {% for e in pinfo.news %}<br><span class="pill warn">News</span> {{ e.currency }} {{ e.title }} at {{ loc(e.time, '%H:%M') }} GMT+0 (in {{ e.in_min }} min): no fills or exits {{ prop_plan.news_min }} min either side.{% endfor %}
+  <a href="{{ url_for('prop_page') }}">Prop page</a>
+</section>
+{% endif %}
 <section class="card hero">
   <h1>Find me a setup</h1>
   <p class="muted">Scans GBP/USD and gold with {{ strategies | length }} strategies: {% for sid, s in strategies.items() %}<b>{{ s.name }}</b> ({{ s.long }}){{ ' and ' if loop.revindex == 2 else ', ' if not loop.last }}{% endfor %}. Each setup shows its levels, chart and the strategy's history. You make the call.</p>

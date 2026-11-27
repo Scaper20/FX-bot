@@ -244,6 +244,11 @@ def run_scan(store, feed, now: pd.Timestamp | None = None, trigger: str = "manua
         tracked += 1
 
     notes = list(hist_notes)
+    from . import prop
+    if prop.plan(settings)["on"]:
+        note = prop.refresh_news(store, now)
+        if note:
+            notes.append(note)
     try:
         for note in (alerts.send_scan_alert(store, settings, new_alert_cards, events, base_url),
                      alerts.maybe_send_digest(store, settings, now, base_url)):

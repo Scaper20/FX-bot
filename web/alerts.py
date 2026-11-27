@@ -105,6 +105,9 @@ def send_scan_alert(store, settings: dict, new_cards: list[dict], events: list[d
     if not to or not mailer.configured():
         return None
     cards = [c for c in new_cards if wanted(c, p)]
+    from . import prop
+    if prop.plan(settings)["on"]:                    # prop mode: only the prop plan's strategies are emailed
+        cards = [c for c in cards if prop.in_plan(settings, strategies.strategy_of(c))]
     evs = events if p["outcomes"] else []
     if not cards and not evs:
         return None

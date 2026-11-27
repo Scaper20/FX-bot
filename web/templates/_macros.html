@@ -36,7 +36,8 @@
     <div class="setup-title">{{ card.pair }} {{ dir_pill(card.direction) }}
       {% set sid = strategy_of(card) %}<span class="pill strat">{{ strategies[sid].name }}</span>
       {% if sid == 'crt' %}<span class="pill">{{ card.range_tf }} range</span>{% else %}<span class="pill">{{ strategies[sid].long }}</span>{% endif %}
-      {% if card.recommended %}<span class="pill rec">matches {{ strategies[sid].rules_word }}</span>{% else %}<span class="pill warn">a rule is not met</span>{% endif %}</div>
+      {% if card.recommended %}<span class="pill rec">matches {{ strategies[sid].rules_word }}</span>{% else %}<span class="pill warn">a rule is not met</span>{% endif %}
+      {% if prop_plan.on %}{% if sid in prop_plan.strategies %}<span class="pill ok">in your prop plan</span>{% else %}<span class="pill">not in your prop plan</span>{% endif %}{% endif %}</div>
     <div class="muted small">first seen {{ loc(row.first_seen) }} · trigger {{ loc(op.decision_time) }}</div>
   </div>
   <p class="small" style="margin:6px 0 0">Best-ranked option: {{ option_line(card, op) }}</p>
@@ -48,6 +49,8 @@
     <div><span>Chance win rate</span><b>{{ pct(op.chance) }}</b></div>
     <div><span>Break-even win rate</span><b>{{ pct(op.breakeven) if op.breakeven else '—' }}</b></div>
     <div><span>Lot size ({{ settings.risk_pct }}% risk)</span><b>{{ '%.2f' % lot.lots if not lot.too_small else 'below 0.01' }}</b></div>
+    {% if prop_plan.on %}{% set pl = prop_lot(card.pair, op.entry, op.stop) %}
+    <div><span>Prop lots ({{ prop_plan.risk_pct }}% of ${{ prop_plan.size | int }})</span><b>{{ '%.2f' % pl.lots if not pl.too_small else 'below 0.01' }}{% if pl.capped %} <span class="pill warn" title="Leverage limit: max {{ pl.max_lots }} lots">capped</span>{% endif %}</b></div>{% endif %}
     <div><span>Spread / risk</span><b>{{ pct(op.cost_share, 1) }}</b></div>
   </div>
   {% if strategy_of(card) == 'crt' %}<p class="small" style="margin:4px 0">History of this option (2021–2024): {{ history(op.stats) }}</p>
