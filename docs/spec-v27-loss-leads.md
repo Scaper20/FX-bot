@@ -24,3 +24,13 @@ Data: v22 order-block trades, H1, 3R (`backtest/out/v22_*.csv`, model `smc_ob`),
 and not below the D1 + H4 average.
 
 Results are appended below; nothing above is edited after the runs.
+
+## Results (run 27 Nov 2026, `python -m backtest.loss_leads_v27`)
+| Test | Set A (GBP/USD + gold) | Set B (EUR/USD + silver) | Verdict |
+|---|---|---|---|
+| 1. Toni New York only | +0.50R, 29 trades (2021–24) | −0.66R, 19 | **FAIL** |
+| 2. CRT skip overlap | overlap +0.049R (79 setups) vs other +0.007R (345), 2021–24 | overlap −0.236R (160) vs other −0.102R (574) | **FAIL** (A goes the wrong way) |
+| 3. Order block D1 only | D1 −0.011R (51 trades, 25.5% won) vs D1+H4 −0.591R (28) | D1 −0.135R (65) vs D1+H4 −0.313R (29) | **FAIL** (below 0R) |
+
+No live rule changes. Note for Ore: test 3's D1-only version loses less than the live D1+H4 version in both sets with
+about twice the trades; it fails only because it is still below zero.
