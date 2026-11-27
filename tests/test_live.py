@@ -150,8 +150,12 @@ def test_smc_live_cards_follow_spec_v22(feed):
         assert pd.Timestamp(z["start"]) <= pd.Timestamp(op["decision_time"])
         assert pd.Timestamp(ln["end"]) < pd.Timestamp(op["decision_time"])
         risk = abs(op["entry"] - op["stop"])
-        if c["strategy"] in ("smc_ob", "irl_erl"):
+        if c["strategy"] in ("smc_ob", "irl_erl", "ore_poi"):
             assert abs(op["target"] - op["entry"]) == pytest.approx(3 * risk, rel=1e-9)
+        if c["strategy"] == "ore_poi":
+            hp, og = c["smc"]["htf_poi"], c["smc"]["origin"]
+            assert hp["type"] in ("OB", "FVG") and hp["low"] <= og["price"] <= hp["high"]
+            assert pd.Timestamp(hp["start"]) <= pd.Timestamp(og["time"]) and pd.Timestamp(hp["touch"]) <= pd.Timestamp(og["time"])
         if c["strategy"] == "lingard":
             assert abs(op["target"] - op["entry"]) == pytest.approx(5 * risk, rel=1e-9)
             assert op["session"] != ""
@@ -172,7 +176,7 @@ def test_smc_watch_level_is_the_one_the_strategy_breaks(feed):
             continue
         for pair, mkt in markets(feed, t).items():
             ws = watch_smc_pair(mkt, pair)
-            assert {w["strategy"] for w in ws} == {"smc_ob", "irl_erl", "toni", "lingard"}
+            assert {w["strategy"] for w in ws} == {"smc_ob", "irl_erl", "toni", "lingard", "ore_poi"}
             for w in ws:
                 titles.add(w["title"])
                 assert (w["direction"] is None) == (w["step"] == 1)
@@ -195,3 +199,32 @@ def test_smc_watch_level_is_the_one_the_strategy_breaks(feed):
                 checked += 1
     assert "Bias" in titles and "Waiting for the H1 MSS" in titles
     assert checked >= 1, "expected at least one MSS right after a heads-up in the replay"
+
+
+def test_ore_poi_setups_follow_spec_v26(feed):
+    """Ore's model: every setup's top/bottom sits in a fresh H4 OB/FVG on its first tap (never a breaker), the
+    pattern finishes within 30 M15 candles of it, one setup per decision, the breaker entry preferred."""
+    from engine.smc_live import htf_poi
+    from engine.smc_models import ore_poi_setups, ore_reversal_setups
+    from engine.smc_structure import external_structure
+    n_all = 0
+    for t, pair, mkt in [(t, p, m) for t in pd.date_range("2023-03-10", "2023-06-28", freq="14D", tz="UTC")
+                         for p, m in markets(feed, t + pd.Timedelta("12h")).items()]:
+        F = mkt.frames["M15"]
+        o, h, l, c = (F[k].to_numpy(float) for k in ("open", "high", "low", "close"))
+        to = F.index.as_unit("ns").asi8
+        ev = external_structure(o, h, l, c, "wick")
+        Z = htf_poi(mkt)
+        ss = ore_poi_setups(o, h, l, c, ev, Z, to, 900)
+        keys = [(s["decision"], s["dir"]) for s in ss]
+        assert len(keys) == len(set(keys))
+        bb = {(s["decision"], s["dir"]) for s in ore_reversal_setups(o, h, l, c, ev) if s["variant"] == "BB"}
+        for s in ss:
+            z, top, d = s["htf_poi"], s["top"], s["dir"]
+            px = h[top] if d == -1 else l[top]
+            assert z["type"] in ("OB", "FVG") and z["lo"] <= px <= z["hi"]
+            assert z["created"] <= to[top] and to[top] - 20 * 900 * 10**9 <= z["touch"] <= to[top]
+            assert 0 < s["decision"] - top <= 30
+            assert (s["variant"] == "BB") == ((s["decision"], d) in bb)
+        n_all += len(ss)
+    assert n_all > 0, "expected some Ore's-model setups in the replay"

@@ -118,5 +118,29 @@
    "fresh_avg_R": 0.095,
    "fresh_n": 32
   }
+ },
+ "ore_poi": {
+  "GBPUSD": {
+   "n": 15,
+   "avg_R": 0.017,
+   "win_rate": 0.267,
+   "first": "2021-11-26T01:45:00+00:00",
+   "last": "2026-11-06T00:15:00+00:00",
+   "enough": false,
+   "score": 0.017,
+   "fresh_avg_R": 0.497,
+   "fresh_n": 30
+  },
+  "XAUUSD": {
+   "n": 19,
+   "avg_R": 0.563,
+   "win_rate": 0.421,
+   "first": "2022-03-30T04:45:00+00:00",
+   "last": "2026-09-30T11:00:00+00:00",
+   "enough": false,
+   "score": 0.563,
+   "fresh_avg_R": 0.497,
+   "fresh_n": 30
+  }
  }
 }

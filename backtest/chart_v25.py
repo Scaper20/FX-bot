@@ -13,7 +13,8 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from backtest.ob_v21 import ohlc  # noqa: E402
-from backtest.ore_v25 import OUT, TAP_WINDOW, TF_SEC, entry_rows, first_touch, htf_zones, poi_mask  # noqa: E402
+from backtest.ore_v25 import OUT, TAP_WINDOW, TF_SEC, entry_rows, poi_mask  # noqa: E402
+from engine.smc_poi import first_touch, htf_zones  # noqa: E402
 from backtest.patterns import MAIN, MARKETS  # noqa: E402
 from backtest.smc_draw import AMBER, CORAL, GREEN, draw, structure_layers  # noqa: E402
 from engine.candles import clean, load_m1_csv, resample  # noqa: E402

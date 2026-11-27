@@ -99,5 +99,17 @@
   </ol>
   <p class="muted small">Not automated: his monthly → weekly top-down, breakers, fake zones and the lower-timeframe confirmation entry. Use the review tags for those.</p>
 </section>
+<h2 id="ore_poi" style="margin-top:22px">6 · Ore's model (H4 POI → M15 liquidity sweep)</h2>
+<section class="card">
+  <p class="small"><b>Evidence, honestly:</b> {{ strategies.ore_poi.evidence }} Report: v25 and v26 on <a href="{{ url_for('backtest') }}">Backtest</a>.</p>
+  <ol>
+    <li><b>Bias:</b> D1 external trend. Trades only that way.</li>
+    <li><b>Higher-timeframe POI:</b> price makes its top (sells) or bottom (buys) inside a <b>fresh H4 order block</b> (your 2/3-candle block) or <b>H4 fair value gap</b>, on the zone's <b>first tap</b>. <b>H4 breaker blocks are ignored</b>: an order block that failed is skipped and the scanner waits for the next order block.</li>
+    <li><b>Entry model on M15</b> (wick breaks, "a break is a break"): an <b>MSS</b>, then a <b>BOS</b> the same way. The BOS pullback is the <b>liquidity</b> (the fake move that traps early traders); the entry sits beyond it.</li>
+    <li><b>Entry zone:</b> the M15 breaker at the swing the MSS broke, if there is one; otherwise your order block at the top/bottom. The pattern must finish within 30 M15 candles of the top/bottom (it should come at the start of the move).</li>
+    <li><b>Order:</b> limit at the zone's near edge, valid 30 M15 candles. <b>Stop:</b> beyond the zone + 2 spreads. <b>Target:</b> 3R. Closed after 5 days.</li>
+  </ol>
+  <p class="muted small">Tracking shows: the D1 trend; the nearest untouched H4 zone and how far price is from it; once it's tapped, the M15 pattern it is waiting for.</p>
+</section>
 <p class="small"><b>Tracking on Find a setup:</b> each of these strategies shows, per pair, which step it is on (trend, structure, inducement or pullback), with the level that has to break and how far price is from it.</p>
 {% endblock %}

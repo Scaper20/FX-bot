@@ -405,6 +405,7 @@ def create_app(store=None, feed=None, now_fn=None) -> Flask:
                            "smc": bool(f.get("alert_smc")), "irl_erl": bool(f.get("alert_irl_erl")),
                            "toni": bool(f.get("alert_toni")),
                            "lingard": bool(f.get("alert_lingard")),
+                           "ore_poi": bool(f.get("alert_ore_poi")),
                            "max_per_day": int(_num(f.get("alert_max"), 30))},
                 "spreads_confirmed": True,
                 "reminders": {"community": bool(f.get("rem_community")), "owner": bool(f.get("rem_owner")),

@@ -19,7 +19,8 @@ from backtest.ob_v21 import ohlc, trend_lookup  # noqa: E402
 from backtest.patterns import FRESH, MAIN, MARKETS  # noqa: E402
 from engine.candles import clean, load_m1_csv, resample  # noqa: E402
 from engine.smc_models import ore_reversal_setups  # noqa: E402
-from engine.smc_structure import external_structure, ore_order_block  # noqa: E402
+from engine.smc_poi import first_touch, htf_zones  # noqa: E402
+from engine.smc_structure import external_structure  # noqa: E402
 
 OUT = ROOT / "backtest" / "out"
 REPORT = ROOT / "backtest" / "reports" / "ore_htf_poi_v25.md"
@@ -29,49 +30,6 @@ HOLD = {"H1": "10D", "M15": "5D", "M5": "3D"}
 YEARS = range(2022, 2027)
 TAP_WINDOW = 20                # LTF candles before the top in which the zone's first tap must fall
 POI_COLS = [f"poi_{h}_{t}" for h in ("H4", "D1") for t in ("OB", "BB", "FVG")]
-
-
-def htf_zones(F, htf: str) -> pd.DataFrame:
-    """Zones on one HTF: created (ns, known at that candle close), lo, hi, dir (+1 buy zone / -1 sell zone), type."""
-    o, h, l, c = ohlc(F)
-    cl = pd.DatetimeIndex(F["close_time_utc"]).as_unit("ns").asi8
-    n = len(c)
-    rows = []
-    for x in range(n - 2):
-        if h[x + 2] < l[x]:
-            rows.append((int(cl[x + 2]), h[x + 2], l[x], -1, "FVG"))
-        if l[x + 2] > h[x]:
-            rows.append((int(cl[x + 2]), h[x], l[x + 2], 1, "FVG"))
-    for e in external_structure(o, h, l, c, "close"):
-        p, d = e["protected"], e["dir"]
-        ob = ore_order_block(o, h, l, c, p, d, ahead=max(0, min(2, e["j"] - p)))
-        if not ob:
-            continue
-        lo, hi = min(ob["near"], ob["far"]), max(ob["near"], ob["far"])
-        rows.append((int(cl[e["j"]]), lo, hi, d, "OB"))
-        # failed: a later HTF candle closes through the far side -> breaker the other way
-        for k in range(e["j"] + 1, n):
-            if (d == -1 and c[k] > hi) or (d == 1 and c[k] < lo):
-                rows.append((int(cl[k]), lo, hi, -d, "BB"))
-                break
-    z = pd.DataFrame(rows, columns=["created", "lo", "hi", "dir", "type"])
-    z["htf"] = htf
-    return z
-
-
-def first_touch(z: pd.DataFrame, H1: pd.DataFrame) -> np.ndarray:
-    """Open time (ns) of the first H1 candle that reaches each zone after it was created (int64 max if never)."""
-    ho = H1.index.as_unit("ns").asi8
-    hh, hl = H1["high"].to_numpy(float), H1["low"].to_numpy(float)
-    out = np.full(len(z), np.iinfo(np.int64).max, dtype=np.int64)
-    for i, (cr, lo, hi, d) in enumerate(zip(z["created"].to_numpy(), z["lo"].to_numpy(), z["hi"].to_numpy(),
-                                             z["dir"].to_numpy())):
-        a = int(np.searchsorted(ho, cr, side="left"))
-        seg = hh[a:] >= lo if d == -1 else hl[a:] <= hi
-        k = int(np.argmax(seg)) if len(seg) else 0
-        if len(seg) and seg[k]:
-            out[i] = ho[a + k]
-    return out
 
 
 def run_pair(pair: str) -> pd.DataFrame:

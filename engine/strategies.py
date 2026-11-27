@@ -60,6 +60,20 @@ STRATEGIES = {
         "alert": "lingard",
         "practice": False,
     },
+    "ore_poi": {
+        "name": "Ore's model",
+        "long": "Ore's model · H4 POI → M15 liquidity sweep",
+        "rules_word": "Ore's model rules",
+        "short": ("D1 trend, first tap of a fresh H4 order block or FVG (breakers ignored), M15 MSS → BOS → "
+                  "liquidity taken, M15 breaker else order block, 3R"),
+        "evidence": ("Spec v26 (the exact live rules, entry chosen when the order is placed): +0.32R a trade over 34 "
+                     "trades in 5 years on GBP/USD + gold (gold +0.56R over 19, GBP/USD +0.02R over 15) and +0.50R "
+                     "over 30 on EUR/USD + silver. The best result so far, but few trades and the rules were picked "
+                     "after seeing the spec v25 results; not proven. Live by Ore's decision."),
+        "report": "backtest/reports/ore_htf_poi_v25.md",
+        "alert": "ore_poi",
+        "practice": False,
+    },
 }
 DEFAULT = "crt"
 

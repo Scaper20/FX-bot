@@ -1,4 +1,4 @@
-"""Live SMC strategies (spec v22, 27 Nov 2026): order block, Toni Iyke, Lingard.
+"""Live SMC strategies (spec v22, 27 Nov 2026): order block, IRL/ERL, Toni Iyke, Lingard; Ore's model (spec v26).
 
 The rules live in engine/smc_models.py and run on engine/smc_structure.external_structure, the same code as the
 backtest (backtest/smc_v22.py). The old tiny-swing order-block detection (v16) is retired.
@@ -15,7 +15,8 @@ import pandas as pd
 from .calendar import next_closes
 from .sessions import friday_late, in_killzone, session_flags
 from .setups import Market
-from .smc_models import LOOK, lingard_setups, orderblock_setups, toni_setups
+from .smc_models import LOOK, lingard_setups, orderblock_setups, ore_poi_setups, toni_setups
+from .smc_poi import first_touch, htf_zones
 from .smc_structure import external_structure, irl_erl_bias
 from .strategies import STRATEGIES
 
@@ -26,7 +27,10 @@ MODELS = {
     "irl_erl": {"tf": "H1", "mode": "close", "bias": ("H4 IRL/ERL", "D1"), "target": "3R", "recent": 6, "hold": 5},
     "lingard": {"tf": "H4", "mode": "wick", "bias": ("D1",), "target": "5R", "recent": 2, "hold": 10,
                 "session": True},
+    "ore_poi": {"tf": "M15", "mode": "wick", "bias": ("D1",), "target": "3R", "recent": 4, "hold": 5},
 }
+POI_TYPES = ("OB", "FVG")     # Ore: HTF breakers (failed order blocks) are ignored
+POI_WORD = {"OB": "order block", "FVG": "fair value gap"}
 MODEL = "smc_ob"            # kept for older imports
 WORD = {1: "bullish", -1: "bearish", 0: "no clear trend"}
 
@@ -106,9 +110,21 @@ def _bias_label(spec: str, v: int) -> str:
     return f"{spec} {WORD[v]}" if spec.endswith("IRL/ERL") else f"{spec} trend {WORD[v]}"
 
 
-def _setups(key: str, o, h, l, c):
+def htf_poi(mkt: Market) -> pd.DataFrame:
+    """Fresh H4 zones for Ore's model with the time of their first H1 touch (spec v26)."""
+    H4 = mkt.frames["H4"]
+    if len(H4) < 25:
+        return pd.DataFrame(columns=["created", "lo", "hi", "dir", "type", "htf", "touch"])
+    Z = htf_zones(H4, "H4")
+    Z["touch"] = first_touch(Z, mkt.frames["H1"])
+    return Z
+
+
+def _setups(key: str, o, h, l, c, mkt: Market | None = None, t_open=None):
     m = MODELS[key]
     ev = external_structure(o, h, l, c, m["mode"])
+    if key == "ore_poi":
+        return ore_poi_setups(o, h, l, c, ev, htf_poi(mkt), t_open, 900, types=POI_TYPES), ev
     if key in ("smc_ob", "irl_erl"):
         out = orderblock_setups(o, h, l, c, ev)
         for x in out:
@@ -131,7 +147,7 @@ def scan_smc_pair(mkt: Market, pair: str, spread: float) -> list[dict]:
         n = len(c)
         to = F.index.as_unit("ns").asi8
         tc = pd.DatetimeIndex(F["close_time_utc"]).as_unit("ns").asi8
-        setups, _ = _setups(key, o, h, l, c)
+        setups, _ = _setups(key, o, h, l, c, mkt, to)
         for s in setups:
             j, d = s["decision"], s["dir"]
             if j < n - m["recent"]:
@@ -183,6 +199,11 @@ def scan_smc_pair(mkt: Market, pair: str, spread: float) -> list[dict]:
                 origin = {"time": _ts(to[p]), "price": float(h[p] if d == -1 else l[p]),
                           "label": "Top of the move" if d == -1 else "Bottom of the move"}
                 zone_label = f"Order block ({s['variant']})"
+            elif key == "ore_poi":
+                p = s["top"]
+                origin = {"time": _ts(to[p]), "price": float(h[p] if d == -1 else l[p]),
+                          "label": "Top of the move (in the H4 zone)" if d == -1 else "Bottom of the move (in the H4 zone)"}
+                zone_label = "Breaker block (M15)" if s["variant"] == "BB" else "Order block (M15)"
             elif key == "toni":
                 origin = {"time": _ts(to[j]), "price": float(s["inducement"]), "label": "Inducement"}
                 zone_label = s["variant"].split(" · ")[1].capitalize()
@@ -202,10 +223,11 @@ def scan_smc_pair(mkt: Market, pair: str, spread: float) -> list[dict]:
                         "zone": {"start": _ts(to[zf]), "end": _ts(to[zl]), "low": float(zlo), "high": float(zhi),
                                  "label": zone_label},
                         "line": {"start": _ts(to[lf]), "end": _ts(to[lt]), "price": float(lpx), "label": llab},
-                        "origin": origin, "irl_erl": _ie_summary(mkt, t_dec, d)},
+                        "origin": origin, "irl_erl": _ie_summary(mkt, t_dec, d), **_poi_info(s)},
                 "entry_status": {m["tf"]: "ok"}, "options": [option], "features": {}, "engine": ENGINE_VERSION,
                 "state": "ready", "recommended": True, "best": oid, "decision_time": dec.isoformat(),
                 "checks": [{"group": "Bias", "label": _bias_label(tf, d), "ok": True, "note": ""} for tf in m["bias"]]
+                + _poi_checks(s, m)
                 + [{"group": "Structure", "label": f"{m['tf']} {trig}", "ok": True, "note": s["variant"]},
                    {"group": "Entry", "label": f"{zone_label} at the zone edge", "ok": True, "note": ""},
                    {"group": "Info", "label": "London / New York session",
@@ -218,6 +240,28 @@ def scan_smc_pair(mkt: Market, pair: str, spread: float) -> list[dict]:
             }
             out.append(card)
     return out
+
+
+def _poi_info(s: dict) -> dict:
+    z = s.get("htf_poi")
+    if not z:
+        return {}
+    return {"htf_poi": {"type": z["type"], "htf": z["htf"], "low": z["lo"], "high": z["hi"],
+                        "start": _ts(z["created"]), "touch": _ts(z["touch"]),
+                        "label": f"{z['htf']} {POI_WORD[z['type']]} (HTF POI)"}}
+
+
+def _poi_checks(s: dict, m: dict) -> list[dict]:
+    z = s.get("htf_poi")
+    if not z:
+        return []
+    return [{"group": "HTF POI", "label": f"Fresh {z['htf']} {POI_WORD[z['type']]} tapped for the first time",
+             "ok": True, "note": f"first touch {pd.Timestamp(z['touch'], tz='UTC'):%a %d %b %H:%M} GMT+0; "
+                                 "H4 breakers are ignored"},
+            {"group": "Structure", "label": f"Pattern done within 30 {m['tf']} candles of the top", "ok": True,
+             "note": f"{s['decision'] - s['top']} candles"},
+            {"group": "Entry", "label": "Entry sits beyond the liquidity (the BOS pullback)", "ok": True,
+             "note": "price must take it to fill the order"}]
 
 
 # ------------------------------------------------------------------ tracking status ("what it's waiting for")
@@ -258,6 +302,9 @@ def watch_smc_pair(mkt: Market, pair: str) -> list[dict]:
             continue
         d = vals.pop()
         w["direction"] = "long" if d == 1 else "short"
+        if key == "ore_poi":
+            out.append(_watch_ore(mkt, pair, w, d, price, F, now))
+            continue
         ev = external_structure(o, h, l, c, m["mode"])
         last = ev[-1] if ev else None
         up, word = d == 1, ("above" if d == 1 else "below")
@@ -291,3 +338,47 @@ def watch_smc_pair(mkt: Market, pair: str) -> list[dict]:
                              f"and then a shift back.")
         out.append(w)
     return out
+
+
+def _fmt(pair: str, v: float) -> str:
+    return f"{v:.5f}" if pair in ("GBPUSD", "EURUSD") else f"{v:,.2f}"
+
+
+TAP_RECENT = 50          # M15 candles: 20 (tap before the top) + 30 (pattern after the top)
+
+
+def _watch_ore(mkt: Market, pair: str, w: dict, d: int, price: float, F: pd.DataFrame, now: int) -> dict:
+    """Ore's model (spec v26): step 2 = waiting for a fresh H4 OB/FVG tap, step 3 = tapped, waiting for the M15
+    pattern (MSS, BOS, liquidity taken). Breakers are ignored."""
+    Z = htf_poi(mkt)
+    never = np.iinfo(np.int64).max
+    side = "sell" if d == -1 else "buy"
+    if len(Z):
+        Z = Z[(Z["dir"] == d) & Z["type"].isin(POI_TYPES)]
+    open_ns = F.index.as_unit("ns").asi8
+    since = int(open_ns[max(0, len(open_ns) - TAP_RECENT)])
+    tapped = Z[(Z["touch"] != never) & (Z["touch"] >= since)] if len(Z) else Z
+    if len(tapped):
+        z = tapped.sort_values("touch").iloc[-1]
+        lvl = float(z["hi"] if d == -1 else z["lo"])
+        w.update(step=3, title="H4 zone tapped: waiting for the M15 pattern", level=lvl, distance=abs(price - lvl))
+        w["text"] = (f"Price tapped a fresh H4 {POI_WORD[z['type']]} ({side} zone {_fmt(pair, z['lo'])}–"
+                     f"{_fmt(pair, z['hi'])}) at {pd.Timestamp(int(z['touch']), tz='UTC'):%a %H:%M} GMT+0. Next on M15: "
+                     f"an MSS, then a BOS the same way; the BOS pullback is the liquidity and the entry sits beyond it. "
+                     f"The pattern must finish within 30 M15 candles of the {'top' if d == -1 else 'bottom'}.")
+        return w
+    fresh = Z[Z["touch"] == never] if len(Z) else Z
+    fresh = fresh[fresh["lo"] > price] if d == -1 else fresh[fresh["hi"] < price] if len(fresh) else fresh
+    if not len(fresh):
+        w.update(step=2, title="Waiting for a fresh H4 zone")
+        w["text"] = (f"No untouched H4 order block or fair value gap on the {side} side of price right now "
+                     f"(H4 breakers are ignored). Waiting for one to form or for price to reach one.")
+        return w
+    near = fresh["lo"] if d == -1 else fresh["hi"]
+    z = fresh.loc[(near - price).abs().idxmin()]
+    lvl = float(z["lo"] if d == -1 else z["hi"])
+    w.update(step=2, title="Waiting for price to reach a fresh H4 zone", level=lvl, distance=abs(price - lvl))
+    w["text"] = (f"Nearest untouched H4 {POI_WORD[z['type']]} for a {side}: {_fmt(pair, z['lo'])}–{_fmt(pair, z['hi'])}. "
+                 f"Price must {'rise' if d == -1 else 'fall'} into it first (H4 breakers are ignored); then the M15 "
+                 f"pattern is the entry model.")
+    return w

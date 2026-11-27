@@ -71,3 +71,26 @@ The within-30 group pooled over all four markets: t +2.16.
   - The grid walk-forward fails (+0.12R over 61 trades, 2 of 4 years).
   - The "within 30 candles" split was chosen after seeing the data.
 - **Verdict: the strongest lead so far, and consistent with Ore's description.** It needs the live forward record to confirm it. There is no unseen history left to test it on.
+
+
+## Correction and live version (spec v26, 27 Nov 2026)
+**Flaw found in the "nearest" entry rows above.** Orders that never filled were dropped before the breaker-else-order-block
+choice, so when the breaker order did not fill, the row fell back to the order block. Live can't know that when the order is
+placed. The OB-only and BB-only rows are not affected.
+
+`backtest/ore_v26.py` re-scores the live rules with the exact live function (`engine.smc_models.ore_poi_setups`): D1
+trend, H4 OB or FVG first tap (breakers ignored, Ore's rule), M15 wick breaks, breaker else OB **chosen at the
+decision**, pattern within 30 candles of the top, 3R.
+
+| Set | Setups | Filled trades | Avg R | Target hit vs chance | Years positive |
+|---|---|---|---|---|---|
+| GBP/USD + gold | 89 | 34 | +0.32 | 35% vs 25% | 4/6 |
+| EUR/USD + silver | 80 | 30 | +0.50 | 40% vs 25% | 4/6 |
+| GBP/USD | 42 | 15 | +0.02 | 27% | 3/6 |
+| Gold | 47 | 19 | +0.56 | 42% | 4/5 |
+| EUR/USD | 49 | 21 | +0.11 | 29% | 4/6 |
+| Silver | 31 | 9 | +1.40 | 67% | 3/4 |
+
+The fix changed almost nothing (33 → 34 trades; the BB entry is 35% of trades). The live rules were chosen after
+seeing v25, so these numbers are in-sample for that choice. Too few trades to call it an edge; the live record is
+the real test.

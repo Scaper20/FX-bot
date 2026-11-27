@@ -26,6 +26,12 @@ def _smc_levels(card: dict, op: dict | None) -> list[dict]:
            {"price": ln["price"], "title": f"{ln['label']} level", "color": "#2F5D9E", "dashed": True,
             "from": _sec(ln["start"])},
            {"price": og["price"], "title": og["label"], "color": "#0F1B2D", "dashed": True, "from": _sec(og["time"])}]
+    if m.get("htf_poi"):
+        hp = m["htf_poi"]
+        out += [{"price": hp["high"], "title": f"{hp['label']} top", "color": "#D99A1E", "dashed": True,
+                 "from": _sec(hp["start"])},
+                {"price": hp["low"], "title": f"{hp['label']} bottom", "color": "#D99A1E", "dashed": True,
+                 "from": _sec(hp["start"])}]
     if op:
         t = _trigger_sec(op)
         out += [{"price": op["entry"], "title": "Entry (zone edge)", "color": "#D99A1E", "from": t},

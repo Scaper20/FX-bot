@@ -244,3 +244,28 @@ def ore_continuation_setups(o, h, l, c, events) -> list[dict]:
                     "far": float(far), "liq": None, "zone": zone, "line": (b["broken"], j, b["level"], "BOS"),
                     "valid": VALID_ORE, "liq_idx": li, "liq_px": float(liq), "first_bos": (a["broken"], a["j"], a["level"])})
     return out
+
+
+def ore_poi_setups(o, h, l, c, events, Z, t_open, tf_sec: int, gap_max: int = 30, tap_window: int = 20,
+                   types=("OB", "FVG")) -> list[dict]:
+    """Ore's model live version (spec v26): reversal setups whose top/bottom formed inside a fresh HTF zone on its
+    first tap (Z from engine.smc_poi with a 'touch' column), completed within gap_max candles of the top; one per
+    decision: the breaker entry if valid, else the order block at the top."""
+    from .smc_poi import tapped_zone
+
+    best = {}
+    for s in ore_reversal_setups(o, h, l, c, events):
+        top, d, j = s["top"], s["dir"], s["decision"]
+        if j - top > gap_max:
+            continue
+        px = h[top] if d == -1 else l[top]
+        z = tapped_zone(Z, d, int(t_open[top]), float(px), tap_window * tf_sec * 10**9, types)
+        if z is None:
+            continue
+        s = {**s, "model": "ore_poi", "htf_poi": {"type": str(z["type"]), "htf": str(z["htf"]), "lo": float(z["lo"]),
+                                                  "hi": float(z["hi"]), "created": int(z["created"]),
+                                                  "touch": int(z["touch"])}}
+        key = (j, d)
+        if key not in best or (s["variant"] == "BB" and best[key]["variant"] != "BB"):
+            best[key] = s
+    return [best[k] for k in sorted(best)]

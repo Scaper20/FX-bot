@@ -144,6 +144,10 @@ def card_charts(card: dict, option: dict | None, after: list | None = None, deci
             mk.append({"time": option["decision_time"], "label": "setup"})
         col = UP if card["direction"] == "long" else DOWN
         boxes = [{"start": z["start"], "end": None, "low": z["low"], "high": z["high"], "color": col, "label": z["label"]}]
+        if m.get("htf_poi"):
+            hp = m["htf_poi"]
+            boxes.insert(0, {"start": hp["start"], "end": None, "low": hp["low"], "high": hp["high"], "color": AMBER,
+                             "label": hp["label"]})
         segs = [{"start": ln["start"], "end": ln["end"], "price": ln["price"], "label": ln["label"],
                  "color": AMBER if ln["label"] == "MSS" else BLUE}]
         svg = candles_svg(card["chart"]["entry"] + (after or []), lv, mk, pair=pair, boxes=boxes, segments=segs,
@@ -180,10 +184,14 @@ def text_equivalent(card: dict, option: dict | None) -> str:
     if card.get("model"):
         m = card["smc"]
         z, ln, og = m["zone"], m["line"], m["origin"]
-        txt = (f"{pair} {m.get('tf', 'H1')}, {m['bias']} trend. {ln['label']}: a candle broke {f(ln['price'])} "
+        txt = (f"{pair} {m.get('tf', 'H1')}, {m['bias']}{'' if 'trend' in m['bias'] else ' trend'}. {ln['label']}: a candle broke {f(ln['price'])} "
                f"(the swing from {loc(ln['start'])}) on the candle opening {loc(ln['end'])}. "
                f"{og['label']}: {f(og['price'])}. {z['label']} from {loc(z['start'])}, "
                f"between {f(z['low'])} and {f(z['high'])}.")
+        if m.get("htf_poi"):
+            hp = m["htf_poi"]
+            txt += (f" Higher-timeframe POI: {hp['label'].replace(' (HTF POI)', '')} from {loc(hp['start'])}, between "
+                    f"{f(hp['low'])} and {f(hp['high'])}, first tapped {loc(hp['touch'])}.")
         if option:
             txt += (f" Limit {card['direction']} entry {f(option['entry'])} at the zone edge, stop {f(option['stop'])}, "
                     f"target {f(option['target'])}.")
