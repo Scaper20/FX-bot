@@ -149,13 +149,16 @@ def run_scan(store, feed, now: pd.Timestamp | None = None, trigger: str = "manua
     settings = store.get_settings()
     started = pd.Timestamp.now(tz="UTC").isoformat()
     row = {"started_at": started, "trigger": trigger, "ok": False, "credits": 0}
-    if counts_credits and store.credits_today() + CALLS_PER_SCAN > int(settings["daily_credit_limit"]):
+    from engine.feeds import twelvedata as TD
+    keys = max(1, TD.key_count())               # a backup key adds its own daily credits
+    if counts_credits and store.credits_today() + CALLS_PER_SCAN > int(settings["daily_credit_limit"]) * keys:
         row.update(message="Daily Twelve Data credit budget reached; scanning resumes after 00:00 UTC.",
                    finished_at=pd.Timestamp.now(tz="UTC").isoformat())
         store.add_scan(row)
         raise ScanError(row["message"])
     markets, errors = {}, []
     calls_before = getattr(feed, "calls", 0)
+    backup_before = TD.backup_calls
     had_hist, backfills, hist_notes = {}, 1, []                       # at most one extra feed call per scan (rate limit)
     for pair in PAIRS:
         try:
@@ -244,6 +247,8 @@ def run_scan(store, feed, now: pd.Timestamp | None = None, trigger: str = "manua
         tracked += 1
 
     notes = list(hist_notes)
+    if TD.backup_calls > backup_before:
+        notes.append(f"backup Twelve Data key used for {TD.backup_calls - backup_before} call(s)")
     from . import prop
     if prop.plan(settings)["on"]:
         note = prop.refresh_news(store, now)

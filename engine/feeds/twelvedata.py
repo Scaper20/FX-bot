@@ -1,9 +1,11 @@
-"""Twelve Data client for live candles. The API key is read from the environment
-(TWELVEDATA_API_KEY) and sent in a header, never in the URL, and never printed."""
+"""Twelve Data client for live candles. API keys are read from the environment and sent in a header, never in
+the URL, and never printed: TWELVEDATA_API_KEY, plus an optional backup TWELVEDATA_API_KEY_BACKUP that is used only
+when a key reports that its API credits are used up (per minute or per day)."""
 from __future__ import annotations
 
 import json
 import os
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -23,11 +25,31 @@ class FeedError(Exception):
     pass
 
 
+KEY_VARS = ("TWELVEDATA_API_KEY", "TWELVEDATA_API_KEY_BACKUP")
+_resting: dict[str, float] = {}        # env var name -> time until which its credits are used up (this process)
+backup_calls = 0                       # calls answered with the backup key (this process)
+
+
+def _keys() -> list[tuple[str, str]]:
+    return [(v, os.environ.get(v, "").strip()) for v in KEY_VARS if os.environ.get(v, "").strip()]
+
+
+def key_count() -> int:
+    return len(_keys())
+
+
 def _key() -> str:
-    k = os.environ.get("TWELVEDATA_API_KEY", "").strip()
-    if not k:
+    keys = _keys()
+    if not keys:
         raise FeedError("TWELVEDATA_API_KEY is not set on the server.")
-    return k
+    return keys[0][1]
+
+
+def _out_of_credits(payload: dict) -> str | None:
+    """'minute' or 'day' if Twelve Data says this key's API credits are used up, else None."""
+    if payload.get("status") != "error" or int(payload.get("code") or 0) != 429:
+        return None
+    return "day" if "day" in str(payload.get("message", "")).lower() else "minute"
 
 
 def parse(payload: dict) -> pd.DataFrame:
@@ -50,18 +72,33 @@ def fetch(pair: str, tf: str, outputsize: int | None = None, timeout: float = 20
               "timezone": "UTC", "order": "ASC", "format": "JSON"}
     if end_date is not None:                                      # older history (D1 backfill)
         params["end_date"] = pd.Timestamp(end_date).tz_convert("UTC").strftime("%Y-%m-%d %H:%M:%S")
-    req = urllib.request.Request(BASE + "?" + urllib.parse.urlencode(params),
-                                 headers={"Authorization": f"apikey {_key()}", "User-Agent": "crt-scanner/1.3"})
-    try:
-        with opener(req, timeout=timeout) as r:
-            payload = json.loads(r.read().decode("utf-8"))
-    except urllib.error.HTTPError as e:
+    global backup_calls
+    keys = _keys()
+    if not keys:
+        raise FeedError("TWELVEDATA_API_KEY is not set on the server.")
+    url = BASE + "?" + urllib.parse.urlencode(params)
+    payload = None
+    for i, (name, key) in enumerate(keys):
+        if _resting.get(name, 0) > time.time() and i < len(keys) - 1:
+            continue                                   # this key is out of credits; try the next one
+        req = urllib.request.Request(url, headers={"Authorization": f"apikey {key}", "User-Agent": "crt-scanner/1.3"})
         try:
-            payload = json.loads(e.read().decode("utf-8"))
-        except Exception:
-            raise FeedError(f"Twelve Data HTTP {e.code}") from None
-    except urllib.error.URLError as e:
-        raise FeedError(f"Could not reach Twelve Data: {e.reason}") from None
+            with opener(req, timeout=timeout) as r:
+                payload = json.loads(r.read().decode("utf-8"))
+        except urllib.error.HTTPError as e:
+            try:
+                payload = json.loads(e.read().decode("utf-8"))
+            except Exception:
+                raise FeedError(f"Twelve Data HTTP {e.code}") from None
+        except urllib.error.URLError as e:
+            raise FeedError(f"Could not reach Twelve Data: {e.reason}") from None
+        spent = _out_of_credits(payload)
+        if spent and i < len(keys) - 1:
+            _resting[name] = time.time() + (6 * 3600 if spent == "day" else 65)
+            continue
+        if i > 0:
+            backup_calls += 1
+        break
     return parse(payload)
 
 

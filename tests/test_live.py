@@ -318,3 +318,29 @@ def test_live_feed_drops_weekend_quotes():
     assert df.index[0] == pd.Timestamp("2026-11-20 20:00", tz="UTC")                       # Fri 15:00 NY: open
     assert pd.Timestamp("2026-11-22 22:00", tz="UTC") in df.index                           # Sun 17:00 NY: reopens
     assert pd.Timestamp("2026-11-21 12:00", tz="UTC") not in df.index                       # Saturday
+
+
+def test_backup_key_takes_over_when_credits_run_out(monkeypatch):
+    """28 Nov 2026: a second key (TWELVEDATA_API_KEY_BACKUP) is used only when the main key reports that its API
+    credits are used up; the main key rests for a while, then is tried again first."""
+    monkeypatch.setenv("TWELVEDATA_API_KEY", "main-key")
+    monkeypatch.setenv("TWELVEDATA_API_KEY_BACKUP", "backup-key")
+    monkeypatch.setattr(TD, "_resting", {})
+    monkeypatch.setattr(TD, "backup_calls", 0)
+    used = []
+    ok = {"values": [{"datetime": "2026-11-25 10:00:00", "open": "1.3", "high": "1.31", "low": "1.29", "close": "1.305"}]}
+    out = {"code": 429, "message": "You have run out of API credits for the current minute.", "status": "error"}
+
+    def opener(req, timeout):
+        key = req.get_header("Authorization").split()[-1]
+        used.append(key)
+        return FakeResp(json.dumps(out if key == "main-key" else ok).encode())
+    df = TD.fetch("GBPUSD", "H1", opener=opener)
+    assert len(df) == 1 and used == ["main-key", "backup-key"] and TD.backup_calls == 1
+    TD.fetch("GBPUSD", "M5", opener=opener)
+    assert used[-1] == "backup-key" and used.count("main-key") == 1        # main key rests (out of credits)
+    assert TD.key_count() == 2
+    monkeypatch.delenv("TWELVEDATA_API_KEY_BACKUP")
+    monkeypatch.setattr(TD, "_resting", {})
+    with pytest.raises(TD.FeedError, match="429"):                          # no backup: the error comes through
+        TD.fetch("GBPUSD", "H1", opener=opener)
