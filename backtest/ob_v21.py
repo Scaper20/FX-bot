@@ -74,7 +74,7 @@ def run_pair(pair: str) -> pd.DataFrame:
             if ob:
                 far = max(ext, ob["high"]) if d == -1 else min(ext, ob["low"])
                 orders.append(("A", "OB", ob["body_edge"], far, None, win, (ob["first"], ob["last"], ob["low"], ob["high"])))
-            ob2 = ore_order_block(o, h, l, c, p, d)
+            ob2 = ore_order_block(o, h, l, c, p, d, ahead=min(2, j - p))   # formation complete by the MSS candle
             if ob2:
                 far = max(ext, ob2["far"]) if d == -1 else min(ext, ob2["far"])
                 box = (ob2["first"], ob2["last"], min(ob2["near"], ob2["far"]), max(ob2["near"], ob2["far"]))
