@@ -22,6 +22,15 @@ def market_open(t: pd.Timestamp) -> bool:
     return True
 
 
+def open_mask(index: pd.DatetimeIndex):
+    """True for candles that open while the forex market is open (vectorised market_open). The live feed also
+    sends weekend quotes (Friday 17:00 to Sunday 17:00 New York); the backtest data has none, so they are dropped."""
+    ny = index.tz_convert(NY)
+    wd, hr = ny.dayofweek, ny.hour
+    closed = (wd == 5) | ((wd == 4) & (hr >= 17)) | ((wd == 6) & (hr < 17))
+    return ~closed
+
+
 def interval_has_trading(a: pd.Timestamp, b: pd.Timestamp) -> bool:
     t = a
     while t < b:

@@ -304,3 +304,17 @@ def test_stored_d1_history_makes_live_d1_trend_match_full_history():
         assert old.index.is_monotonic_increasing and not old.index.has_duplicates
         assert (old["close_time_utc"] <= t).all()
     assert checked > 30
+
+
+def test_live_feed_drops_weekend_quotes():
+    """27 Nov 2026: Twelve Data sends quotes while the forex market is closed (~28% of H1 candles); the backtest
+    data has none. parse() keeps only candles opening while the market is open."""
+    idx = pd.date_range("2026-11-20 20:00", "2026-11-23 01:00", freq="1h", tz="UTC")       # Fri 20:00 -> Mon 01:00
+    payload = {"values": [{"datetime": t.strftime("%Y-%m-%d %H:%M:%S"), "open": "1", "high": "1", "low": "1", "close": "1"}
+                          for t in idx]}
+    df = TD.parse(payload)
+    ny = df.index.tz_convert("America/New_York")
+    assert not ((ny.dayofweek == 5) | ((ny.dayofweek == 4) & (ny.hour >= 17)) | ((ny.dayofweek == 6) & (ny.hour < 17))).any()
+    assert df.index[0] == pd.Timestamp("2026-11-20 20:00", tz="UTC")                       # Fri 15:00 NY: open
+    assert pd.Timestamp("2026-11-22 22:00", tz="UTC") in df.index                           # Sun 17:00 NY: reopens
+    assert pd.Timestamp("2026-11-21 12:00", tz="UTC") not in df.index                       # Saturday

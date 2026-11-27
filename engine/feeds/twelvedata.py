@@ -10,10 +10,12 @@ import urllib.request
 
 import pandas as pd
 
+from ..calendar import open_mask
+
 BASE = "https://api.twelvedata.com/time_series"
 SYMBOLS = {"GBPUSD": "GBP/USD", "XAUUSD": "XAU/USD"}
 INTERVAL = {"M5": "5min", "M15": "15min", "H1": "1h"}
-OUTPUTSIZE = {"H1": 2500, "M15": 1500, "M5": 2500}
+OUTPUTSIZE = {"H1": 3500, "M15": 2100, "M5": 3500}   # ~2,500 / 1,500 / 2,500 trading candles once weekends are dropped
 CALLS_PER_SCAN = len(SYMBOLS) * len(INTERVAL)
 
 
@@ -39,7 +41,7 @@ def parse(payload: dict) -> pd.DataFrame:
     out = df[["open", "high", "low", "close"]].astype(float)
     out.index = pd.DatetimeIndex(idx, name="time_utc")
     out = out[~out.index.duplicated(keep="last")].sort_index()
-    return out
+    return out[open_mask(out.index)]               # weekend quotes: the backtests never saw them (27 Nov 2026)
 
 
 def fetch(pair: str, tf: str, outputsize: int | None = None, timeout: float = 20.0,
