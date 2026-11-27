@@ -54,6 +54,7 @@ def run_pair(pair: str) -> list[dict]:
         res = oc(side, e, stop, None, tgt, None, (int(Eo[j + 1]), int(Ec[min(j + s["valid"], n - 1)])))
         filled = bool(res) and res["R"] is not None
         rows.append({"pair": pair, "side": side, "variant": s["variant"], "poi": s["htf_poi"]["type"], "t_dec": t,
+                     "e": e, "stop": stop,
                      "filled": filled, "R": res["R"] if filled else None, "hit": res["hit_T2"] if filled else None,
                      "chance": res["p_T2"] if filled else None})
     return rows
