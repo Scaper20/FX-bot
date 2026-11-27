@@ -208,6 +208,7 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("files", nargs="+")
     ap.add_argument("--candles", help="folder with {PAIR}_M5.pkl for days after the Dukascopy data ends")
+    ap.add_argument("--only", help="run one strategy set (by name) and write prop_sim_v29_<n>.csv")
     a = ap.parse_args()
     trades = load(a.files, a.candles)
     rules = Rules()
@@ -217,7 +218,9 @@ def main() -> int:
             "Ore + IRL/ERL + Lingard": ("ore_poi", "irl_erl", "lingard"), "Toni only": ("toni",)}
     mgmt = {"plain": {}, "daily stop 1.5%": {"daily_stop": 0.015}, "halve after -2.5%": {"dd_halve": 0.025},
             "taper near target": {"taper": True}, "halve + taper": {"dd_halve": 0.025, "taper": True}}
-    for name, strats in sets.items():
+    for k, (name, strats) in enumerate(sets.items()):
+        if a.only is not None and str(k) != a.only:
+            continue
         for risk in (0.0025, 0.005, 0.0075, 0.01, 0.015, 0.02):
             for mname, kw in mgmt.items():
                 plan = Plan(risk, strats, label=f"{name} | {risk:.2%} | {mname}", **kw)
@@ -228,7 +231,8 @@ def main() -> int:
                 r.update({"set": name, "risk": risk, "mgmt": mname})
                 rows.append(r)
                 print(r["plan"], r["pass"], r["boot_pass"], flush=True)
-    pd.DataFrame(rows).to_csv(ROOT / "backtest" / "out" / "prop_sim_v29.csv", index=False)
+    out = ROOT / "backtest" / "out" / (f"prop_sim_v29_{a.only}.csv" if a.only is not None else "prop_sim_v29.csv")
+    pd.DataFrame(rows).to_csv(out, index=False)
     return 0
 
 
