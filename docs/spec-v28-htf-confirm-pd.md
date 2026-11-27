@@ -35,3 +35,41 @@ and at least **0.10R above** the same strategy's unfiltered trades. "All strateg
 n >= 30 and decides whether the filter applies to every strategy at once.
 
 Results are appended below; nothing above is edited after the runs.
+
+## Results (run 27 Nov 2026, `python -m backtest.htf_pd_v28`; CRT decision times fixed to ns before the counted run)
+
+| Strategy | Rule | A: all → kept (n) | B: all → kept (n) | Pass |
+|---|---|---|---|---|
+| crt | 1: H4 confirm | +0.014 → +0.099 (220) | -0.131 → -0.076 (361) | fail |
+| crt | 2: premium/discount H4 | +0.014 → +0.087 (253) | -0.131 → -0.131 (454) | fail |
+| crt | 2b: premium/discount D1 | +0.014 → -0.087 (201) | -0.131 → -0.150 (386) | fail |
+| crt | 1+2 | +0.014 → +0.282 (91) | -0.131 → -0.086 (162) | fail |
+| smc_ob | 1: H4 confirm | -0.455 → -0.455 (21) | -0.313 → -0.313 (29) | fail |
+| smc_ob | 2: premium/discount H4 | -0.455 → -0.239 (10) | -0.313 → -0.705 (13) | fail |
+| smc_ob | 2b: premium/discount D1 | -0.455 → -1.000 (6) | -0.313 → -0.453 (7) | fail |
+| smc_ob | 1+2 | -0.455 → -0.239 (10) | -0.313 → -0.705 (13) | fail |
+| irl_erl | 1: H4 confirm | +0.203 → -1.000 (6) | -0.139 → -0.306 (16) | fail |
+| irl_erl | 2: premium/discount H4 | +0.203 → +0.058 (22) | -0.139 → -0.132 (50) | fail |
+| irl_erl | 2b: premium/discount D1 | +0.203 → -0.011 (12) | -0.139 → +0.028 (30) | fail |
+| irl_erl | 1+2 | +0.203 → -1.000 (6) | -0.139 → -0.521 (8) | fail |
+| toni | 1: H4 confirm | +0.025 → +0.060 (151) | -0.173 → -0.102 (227) | fail |
+| toni | 2: premium/discount H4 | +0.025 → +0.222 (56) | -0.173 → -0.146 (108) | fail |
+| toni | 2b: premium/discount D1 | +0.025 → +0.210 (35) | -0.173 → -0.324 (92) | fail |
+| toni | 1+2 | +0.025 → +0.495 (27) | -0.173 → -0.140 (45) | fail |
+| lingard | 1: H4 confirm | +0.068 → +0.314 (13) | +0.162 → +0.130 (33) | fail |
+| lingard | 2: premium/discount H4 | +0.068 → +0.314 (13) | +0.162 → +0.479 (33) | fail |
+| lingard | 2b: premium/discount D1 | +0.068 → +0.897 (3) | +0.162 → +0.367 (19) | fail |
+| lingard | 1+2 | +0.068 → +0.553 (11) | +0.162 → +0.553 (24) | fail |
+| ore_poi | 1: H4 confirm | +0.608 → +0.210 (15) | +0.497 → +0.297 (17) | fail |
+| ore_poi | 2: premium/discount H4 | +0.608 → +0.561 (9) | +0.497 → +0.772 (15) | fail |
+| ore_poi | 2b: premium/discount D1 | +0.608 → +1.813 (4) | +0.497 → +0.573 (7) | fail |
+| ore_poi | 1+2 | +0.608 → -0.457 (6) | +0.497 → +0.262 (6) | fail |
+| ALL | 1: H4 confirm | +0.027 → +0.053 (426) | -0.122 → -0.081 (683) | fail |
+| ALL | 2: premium/discount H4 | +0.027 → +0.117 (363) | -0.122 → -0.094 (673) | fail |
+| ALL | 2b: premium/discount D1 | +0.027 → -0.024 (261) | -0.122 → -0.146 (541) | fail |
+| ALL | 1+2 | +0.027 → +0.225 (151) | -0.122 → -0.072 (258) | fail |
+
+**No rule passes; no live change.** Direction is consistent, though: H4 confirmation and premium/discount (H4)
+raise the average in both sets for CRT and for all strategies pooled (1+2 pooled: A +0.027 → +0.225R on 151 trades,
+B −0.122 → −0.072R on 258), but set B stays below zero. D1 premium/discount does not help. Kept as a lead for the
+live record; Ore's loss reviews may sharpen it (e.g. which dealing range he means).
