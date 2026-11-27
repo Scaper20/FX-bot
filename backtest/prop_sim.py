@@ -32,8 +32,10 @@ class Rules:
     day_tz: str = "Europe/London"  # Equity Edge: the daily limit resets at 22:00 London time
     day_start_h: int = 22
     equity_trailing: bool = True  # Equity Edge: the trailing floor follows the highest balance OR equity
-    leverage: dict = field(default_factory=lambda: {"GBPUSD": 30, "EURUSD": 30, "XAUUSD": 10, "XAGUSD": 10})
-    contract: dict = field(default_factory=lambda: {"GBPUSD": 100_000, "EURUSD": 100_000, "XAUUSD": 100, "XAGUSD": 5000})
+    leverage: dict = field(default_factory=lambda: {"GBPUSD": 30, "EURUSD": 30, "AUDUSD": 30, "USDJPY": 30,
+                                                     "XAUUSD": 10, "XAGUSD": 10})
+    contract: dict = field(default_factory=lambda: {"GBPUSD": 100_000, "EURUSD": 100_000, "AUDUSD": 100_000,
+                                                    "USDJPY": 100_000, "XAUUSD": 100, "XAGUSD": 5000})
     no_hedge: bool = True         # hedging is prohibited: skip a trade opposite an open one on the same pair
     payout_days: int | None = None  # funded stage: pay out profit every N days (no target)
     split: float = 0.8
@@ -50,6 +52,16 @@ class Plan:
     label: str = field(default="")
 
 
+def _usd_per_move(pair: str, price: float, contract: float) -> float:
+    """Dollars per 1.0 price move per lot: XXX/USD pays in dollars; USD/XXX pays in XXX, converted at the price."""
+    return contract / price if pair.startswith("USD") else contract
+
+
+def _notional_per_lot(pair: str, price: float, contract: float) -> float:
+    """Dollar value of one lot (for margin): USD/XXX = contract dollars; XXX/USD = contract x price."""
+    return contract if pair.startswith("USD") else contract * price
+
+
 def load(paths, candles_dir: str | None = None) -> pd.DataFrame:
     """Filled orders from replay files, plus each trade's best point (MFE, in R) between fill and exit, for the
     equity-based trailing floor. 1-minute Dukascopy data where it exists, else <candles_dir>/{PAIR}_M5.pkl."""
@@ -63,10 +75,11 @@ def load(paths, candles_dir: str | None = None) -> pd.DataFrame:
     d["exit"] = pd.to_datetime(d["exit_time"], utc=True)
     d = d.drop_duplicates(["strategy", "pair", "fill"]).sort_values("fill").reset_index(drop=True)
     d["mfe"] = 0.0
-    from backtest.patterns import MARKETS
+    from backtest.patterns import EXTRA, MARKETS
     from engine.candles import clean, load_m1_csv
+    files = {**MARKETS, **EXTRA}
     for pair, g in d.groupby("pair"):
-        m1 = clean(load_m1_csv(ROOT / MARKETS[pair]["file"]))[0]
+        m1 = clean(load_m1_csv(ROOT / files[pair]["file"]))[0]
         src = [m1]
         if candles_dir and (Path(candles_dir) / f"{pair}_M5.pkl").exists():
             m5 = pd.read_pickle(Path(candles_dir) / f"{pair}_M5.pkl")
@@ -103,7 +116,7 @@ def run(trades: pd.DataFrame, rules: Rules, plan: Plan, start: pd.Timestamp, hor
     entry = t["entry"].to_numpy(float) if "entry" in t else np.ones(len(t))
     stopd = np.abs(t["entry"].to_numpy(float) - t["stop"].to_numpy(float)) if "stop" in t else np.ones(len(t))
     mfe = t["mfe"].to_numpy(float) if "mfe" in t else np.zeros(len(t))
-    at_fill = {}
+    at_fill, lots_open = {}, {}
     paid, n_pay, next_pay = 0.0, 0, None
     taken, days_traded = set(), set()
     cur_day, day_start, day_pnl = None, bal, 0.0
@@ -130,15 +143,17 @@ def run(trades: pd.DataFrame, rules: Rules, plan: Plan, start: pd.Timestamp, hor
                 r_usd /= 2
             if plan.taper:
                 r_usd = min(r_usd, max((target_bal - bal) / 3, 0.0025 * rules.balance))
-            c = rules.contract.get(pair[i], 1)
-            lots = r_usd / (stopd[i] * c) if stopd[i] > 0 else 0.0
-            used = sum(size[j] / (stopd[j] * rules.contract.get(pair[j], 1)) * entry[j] * rules.contract.get(pair[j], 1)
-                       / rules.leverage.get(pair[j], 30) for j in open_ if stopd[j] > 0)
+            usd_move = _usd_per_move(pair[i], entry[i], rules.contract.get(pair[i], 1))   # $ per 1.0 move per lot
+            lots = r_usd / (stopd[i] * usd_move) if stopd[i] > 0 else 0.0
+            used = sum(lots_open[j] * _notional_per_lot(pair[j], entry[j], rules.contract.get(pair[j], 1))
+                       / rules.leverage.get(pair[j], 30) for j in open_)
             free_margin = bal - used
-            max_lots = max(0.0, free_margin) * rules.leverage.get(pair[i], 30) / (entry[i] * c)
+            max_lots = max(0.0, free_margin) * rules.leverage.get(pair[i], 30) / _notional_per_lot(
+                pair[i], entry[i], rules.contract.get(pair[i], 1))
             if lots > max_lots:                                  # leverage caps the size: less risk on this trade
                 lots = max_lots
-                r_usd = lots * stopd[i] * c
+                r_usd = lots * stopd[i] * usd_move
+            lots_open[i] = lots
             if r_usd <= 0.0005 * rules.balance:
                 continue
             size[i] = r_usd

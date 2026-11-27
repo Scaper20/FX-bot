@@ -27,6 +27,10 @@ MAIN = {p: {"spread": K.PAIRS[p]["spread"], "file": K.PAIRS[p]["file"]} for p in
 FRESH = {"EURUSD": {"spread": 0.0001, "file": "data/eurusd-m1-bid-2021-11-01-2026-11-19.zip"},
          "XAGUSD": {"spread": 0.025, "file": "data/xagusd-m1-bid-2021-11-01-2026-11-19.zip"}}
 MARKETS = {**MAIN, **FRESH}
+# Extra markets (28 Nov 2026): 5-minute Twelve Data history (Dukascopy refused downloads); spread assumed 1 pip until
+# Ore confirms his prop firm's spreads. Not part of MARKETS, so older scripts keep their four markets.
+EXTRA = {"USDJPY": {"spread": 0.010, "file": "data/td/usdjpy-m5.csv.gz"},
+         "AUDUSD": {"spread": 0.0001, "file": "data/td/audusd-m5.csv.gz"}}
 TFS = ("M15", "H1", "H4", "D1")
 HOLD = {"M15": "2D", "H1": "5D", "H4": "15D", "D1": "45D"}
 N = 3                     # swing: beyond the 3 candles each side, known 3 candles later

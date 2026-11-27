@@ -33,9 +33,9 @@ from engine.setups import Market  # noqa: E402
 from engine.smc_live import scan_smc_pair  # noqa: E402
 from engine.strategies import strategy_of  # noqa: E402
 from web.service import actionable  # noqa: E402
-from backtest.patterns import MARKETS  # noqa: E402
+from backtest.patterns import EXTRA, MARKETS  # noqa: E402
 
-MKT = {**MARKETS, **K.PAIRS}                 # data file and spread per pair (EUR/USD and silver from the fresh set)
+MKT = {**MARKETS, **EXTRA, **K.PAIRS}                 # data file and spread per pair (EUR/USD and silver from the fresh set)
 
 OUT = ROOT / "backtest" / "out" / "replay_setups.csv"
 LIVE_N = {"H1": 2500, "M15": 1500, "M5": 2500}
