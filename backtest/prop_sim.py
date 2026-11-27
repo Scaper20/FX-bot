@@ -29,7 +29,12 @@ class Rules:
     trailing: float = 0.05        # max loss below the highest balance reached
     lock_at_start: bool = False   # True: the trailing floor stops rising once it reaches the starting balance
     min_days: int = 2             # trading days needed before a pass counts
-    day_offset_h: int = 0         # the firm's day starts at 00:00 UTC + this many hours
+    day_tz: str = "Europe/London"  # Equity Edge: the daily limit resets at 22:00 London time
+    day_start_h: int = 22
+    equity_trailing: bool = True  # Equity Edge: the trailing floor follows the highest balance OR equity
+    leverage: dict = field(default_factory=lambda: {"GBPUSD": 30, "XAUUSD": 10})
+    contract: dict = field(default_factory=lambda: {"GBPUSD": 100_000, "XAUUSD": 100})
+    no_hedge: bool = True         # hedging is prohibited: skip a trade opposite an open one on the same pair
 
 
 @dataclass
@@ -43,16 +48,37 @@ class Plan:
     label: str = field(default="")
 
 
-def load(paths) -> pd.DataFrame:
+def load(paths, candles_dir: str | None = None) -> pd.DataFrame:
+    """Filled orders from replay files, plus each trade's best point (MFE, in R) between fill and exit, for the
+    equity-based trailing floor. 1-minute Dukascopy data where it exists, else <candles_dir>/{PAIR}_M5.pkl."""
     parts = []
     for p in paths:
         d = pd.read_csv(p)
         d = d[d["order_placed"].astype(bool) & (d["status"] == "filled") & d["R"].notna() & d["exit_time"].notna()]
-        parts.append(d[["strategy", "pair", "fill_time", "exit_time", "R"]])
+        parts.append(d[["strategy", "pair", "direction", "entry", "stop", "fill_time", "exit_time", "R"]])
     d = pd.concat(parts, ignore_index=True)
     d["fill"] = pd.to_datetime(d["fill_time"], utc=True)
     d["exit"] = pd.to_datetime(d["exit_time"], utc=True)
-    return d.drop_duplicates(["strategy", "pair", "fill"]).sort_values("fill").reset_index(drop=True)
+    d = d.drop_duplicates(["strategy", "pair", "fill"]).sort_values("fill").reset_index(drop=True)
+    d["mfe"] = 0.0
+    from engine import config as K
+    from engine.candles import clean, load_m1_csv
+    for pair, g in d.groupby("pair"):
+        m1 = clean(load_m1_csv(ROOT / K.PAIRS[pair]["file"]))[0]
+        src = [m1]
+        if candles_dir:
+            m5 = pd.read_pickle(Path(candles_dir) / f"{pair}_M5.pkl")
+            src.append(m5[m5.index > m1.index[-1]])
+        px = pd.concat([x[["high", "low"]] for x in src]).sort_index()
+        t = px.index.as_unit("ns").asi8
+        H, L = px["high"].to_numpy(float), px["low"].to_numpy(float)
+        for i, r in g.iterrows():
+            a = int(np.searchsorted(t, r["fill"].value)); b = int(np.searchsorted(t, r["exit"].value, side="right"))
+            risk = abs(r["entry"] - r["stop"])
+            if b > a and risk > 0:
+                fav = (H[a:b].max() - r["entry"]) if r["direction"] == "long" else (r["entry"] - L[a:b].min())
+                d.at[i, "mfe"] = max(0.0, fav / risk)
+    return d
 
 
 def run(trades: pd.DataFrame, rules: Rules, plan: Plan, start: pd.Timestamp, horizon_days: int = 182) -> dict:
@@ -61,8 +87,8 @@ def run(trades: pd.DataFrame, rules: Rules, plan: Plan, start: pd.Timestamp, hor
     t = trades[(trades["fill"] >= start) & (trades["fill"] < end)]
     if plan.strategies:
         t = t[t["strategy"].isin(plan.strategies)]
-    off = pd.Timedelta(hours=rules.day_offset_h)
-    day = lambda ts: (ts - off).floor("D")
+    shift = pd.Timedelta(hours=24 - rules.day_start_h)
+    day = lambda ts: (ts.tz_convert(rules.day_tz) + shift).date()
     target_bal = rules.balance * (1 + rules.target)
     events = []                                   # (time, kind, idx): kind 0 = exit before 1 = fill at the same time
     for i, r in enumerate(t.itertuples()):
@@ -70,6 +96,12 @@ def run(trades: pd.DataFrame, rules: Rules, plan: Plan, start: pd.Timestamp, hor
         events.append((r.exit, 0, i))
     events.sort()
     bal, peak, open_, size = rules.balance, rules.balance, set(), {}
+    side = t["direction"].to_numpy() if "direction" in t else np.array(["long"] * len(t))
+    pair = t["pair"].to_numpy()
+    entry = t["entry"].to_numpy(float) if "entry" in t else np.ones(len(t))
+    stopd = np.abs(t["entry"].to_numpy(float) - t["stop"].to_numpy(float)) if "stop" in t else np.ones(len(t))
+    mfe = t["mfe"].to_numpy(float) if "mfe" in t else np.zeros(len(t))
+    at_fill = {}
     taken, days_traded = set(), set()
     cur_day, day_start, day_pnl = None, bal, 0.0
     R = t["R"].to_numpy(float)
@@ -82,12 +114,26 @@ def run(trades: pd.DataFrame, rules: Rules, plan: Plan, start: pd.Timestamp, hor
                 continue
             if plan.max_open is not None and len(open_) >= plan.max_open:
                 continue
+            if rules.no_hedge and any(pair[j] == pair[i] and side[j] != side[i] for j in open_):
+                continue
             r_usd = plan.risk * rules.balance
             if plan.dd_halve is not None and peak - bal >= plan.dd_halve * rules.balance:
                 r_usd /= 2
             if plan.taper:
                 r_usd = min(r_usd, max((target_bal - bal) / 3, 0.0025 * rules.balance))
+            c = rules.contract.get(pair[i], 1)
+            lots = r_usd / (stopd[i] * c) if stopd[i] > 0 else 0.0
+            used = sum(size[j] / (stopd[j] * rules.contract.get(pair[j], 1)) * entry[j] * rules.contract.get(pair[j], 1)
+                       / rules.leverage.get(pair[j], 30) for j in open_ if stopd[j] > 0)
+            free_margin = bal - used
+            max_lots = max(0.0, free_margin) * rules.leverage.get(pair[i], 30) / (entry[i] * c)
+            if lots > max_lots:                                  # leverage caps the size: less risk on this trade
+                lots = max_lots
+                r_usd = lots * stopd[i] * c
+            if r_usd <= 0.0005 * rules.balance:
+                continue
             size[i] = r_usd
+            at_fill[i] = bal
             open_.add(i)
             taken.add(i)
             days_traded.add(d)
@@ -95,6 +141,8 @@ def run(trades: pd.DataFrame, rules: Rules, plan: Plan, start: pd.Timestamp, hor
         if i not in open_:
             continue
         open_.discard(i)
+        if rules.equity_trailing:                             # the trade's best point lifted the equity high
+            peak = max(peak, at_fill[i] + mfe[i] * size[i])
         pnl = R[i] * size[i]
         bal += pnl
         day_pnl += pnl
@@ -159,8 +207,9 @@ def bootstrap(trades, rules, plan, n_paths=2000, weeks=26, seed=29):
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("files", nargs="+")
+    ap.add_argument("--candles", help="folder with {PAIR}_M5.pkl for days after the Dukascopy data ends")
     a = ap.parse_args()
-    trades = load(a.files)
+    trades = load(a.files, a.candles)
     rules = Rules()
     print(f"{len(trades)} trades {trades['fill'].min().date()} -> {trades['fill'].max().date()}\n")
     rows = []
@@ -173,7 +222,9 @@ def main() -> int:
             for mname, kw in mgmt.items():
                 plan = Plan(risk, strats, label=f"{name} | {risk:.2%} | {mname}", **kw)
                 r = evaluate(trades, rules, plan)
-                r.update(bootstrap(trades, rules, plan, n_paths=300))
+                r.update({f"{k}_1y": v for k, v in evaluate(trades, rules, plan, horizon_days=364).items()
+                          if k in ("pass", "still_open", "median_days_to_pass")})
+                r.update(bootstrap(trades, rules, plan, n_paths=300, weeks=52))
                 r.update({"set": name, "risk": risk, "mgmt": mname})
                 rows.append(r)
                 print(r["plan"], r["pass"], r["boot_pass"], flush=True)

@@ -15,11 +15,21 @@ after Ore's spreads, overlapping trades included) is played through the challeng
 Compared: risk per trade 0.25% – 2%, strategy sets (all six, CRT only, the five smart-money strategies, Ore's model +
 IRL/ERL + Lingard), with and without a "no new trades after -1.5% on the day" stop.
 
-## Assumptions to confirm with the firm (unknown today)
-Daily loss counted on balance or on equity (including open trades), and when the firm's day resets; whether the
-trailing maximum loss follows balance or equity and whether it stops at the starting balance; consistency rules;
-news and weekend holding; commissions; payout split and schedule. The simulation uses closed balance, a 00:00 UTC
-day and a floor that keeps trailing. Equity-based rules are stricter than these numbers.
+## Equity Edge rules (official help centre, "Trading Rules and Guidelines", read 27 Nov 2026)
+- Daily loss 3% from the balance at the reset, **reset 22:00 London time**; closed P&L, swaps and commissions count.
+- Maximum loss 5% **trailing the highest balance or equity** (section 1; section 12 says the high is from closed
+  trades): simulated as the stricter equity version (each trade's best point lifts the high). No lock at the start.
+- Target 8% of the starting balance; minimum 2 trading days; unlimited time; manual review within 3 working days.
+- Leverage 1:30 FX, **1:10 metals** (caps gold size on $5K: ~0.14 lots); simulated with margin for open trades.
+- **No hedging** (simulated: skip a trade opposite an open one on the same pair). No EAs, copiers, signal bots or trade
+  management services: Ore places every trade by hand. No martingale.
+- **News: no opening or closing within 2 minutes either side of high-impact news** (USD news: all pairs). Funded: profit
+  from such trades is removed; news profit over 25% of the profit share voids the payout. Not simulated (no calendar).
+- Weekend holding allowed; no consistency rule; no inactivity rule; funded payouts 80% every 14 days.
+
+## Assumptions still open
+Whether floating losses count toward the daily limit (simulated: closed P&L only); commissions (not included);
+which of the two trailing definitions applies (simulated: the stricter one).
 
 ## How results are read
 This is a plan, not a rule test: the trade record is the same 2022-2026 replay the strategies were judged on. The
