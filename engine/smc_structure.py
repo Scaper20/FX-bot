@@ -96,3 +96,36 @@ def order_block(o, h, l, c, origin: int, direction: int, back: int = 5):
     lo, hi = float(l[first:last + 1].min()), float(h[first:last + 1].max())
     edge = float(o[first:last + 1].min()) if direction == -1 else float(o[first:last + 1].max())
     return {"first": first, "last": last, "low": lo, "high": hi, "body_edge": edge}
+
+
+def ore_order_block(o, h, l, c, origin: int, direction: int, ahead: int = 2):
+    """Ore's order block (27 Nov 2026): a 2-candle engulfing or a 3-candle formation (candle, pin bar, engulfing)
+    whose last candle closes beyond the bodies of the one or two before it, containing the origin candle.
+    direction=-1: sell block at a top; +1: buy block at a bottom (mirror). The box is drawn from the first candle:
+    from its near edge (sell: its low) to the formation's far extreme (sell: highest high).
+    Returns dict(first, last, kind, near, far, body_edge) or None."""
+    if direction == 1:                                     # mirror so the code below is always the sell case
+        o, h, l, c = -o, -l, -h, -c
+    n = len(c)
+    found = None
+    for k in range(max(origin, 1), min(origin + ahead, n - 1) + 1):
+        if not c[k] < o[k]:
+            continue
+        if k >= 2 and k - 2 <= origin:
+            pb = k - 1
+            rng = h[pb] - l[pb]
+            body = abs(c[pb] - o[pb])
+            upper = h[pb] - max(o[pb], c[pb])
+            if rng > 0 and upper >= 2 * body and upper >= 0.5 * rng and \
+                    c[k] < min(o[k - 2], c[k - 2], o[pb], c[pb]):
+                found = (k - 2, k, "3-candle")
+                break
+        if k - 1 <= origin and c[k - 1] > o[k - 1] and c[k] < o[k - 1]:
+            found = (k - 1, k, "2-candle")
+            break
+    if found is None:
+        return None
+    f, last, kind = found
+    sg = -1.0 if direction == 1 else 1.0
+    return {"first": f, "last": last, "kind": kind, "near": float(sg * l[f]),
+            "far": float(sg * h[f:last + 1].max()), "body_edge": float(sg * min(o[f], c[f]))}
