@@ -1,6 +1,6 @@
 import numpy as np
 
-from engine.smc_structure import external_structure, ore_order_block
+from engine.smc_structure import dealing_range, external_structure, irl_erl_bias, ore_order_block
 
 
 def _bars(path):
@@ -49,3 +49,17 @@ def test_ore_order_block_two_and_three_candles_and_mirror():
     # no takeover -> no order block
     c3 = np.array([10.0, 10.2, 11.0, 10.5]); o3 = np.array([10.0, 10.0, 10.2, 11.0])
     assert ore_order_block(o3, np.maximum(o3, c3) + .05, np.minimum(o3, c3) - .05, c3, origin=2, direction=-1) is None
+
+
+def test_irl_erl_bias_flips_on_erl_and_irl_events():
+    # range, rally that takes the range high (ERL high -> bias down), then a pullback into the rally's bullish FVG
+    # (IRL -> bias up)
+    path = [100.0, 101.0] * 12 + [101.5, 102.5, 104.5, 106.5, 108.0, 107.0, 106.0, 104.8, 104.0, 103.6, 104.5]
+    o, h, l, c = _bars(path)
+    hi, lo = dealing_range(o, h, l, c)
+    b, last = irl_erl_bias(o, h, l, c)
+    k_erl = next(k for k in range(len(c)) if last[k] == "erl_high")
+    assert b[k_erl] == -1 and h[k_erl] > hi[k_erl - 1]
+    k_irl = next(k for k in range(k_erl, len(c)) if last[k] == "irl_bull")
+    assert b[k_irl] == 1 and k_irl > k_erl
+    assert all(b[k] == -1 for k in range(k_erl, k_irl))            # bias stays down until the IRL is reached

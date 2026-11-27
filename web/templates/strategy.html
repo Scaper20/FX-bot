@@ -63,6 +63,12 @@
   </ol>
 </section>
 
+<section class="card">
+  <h2>IRL → ERL (shown on order-block cards; not a rule yet)</h2>
+  <p class="small">Price moves from internal range liquidity to external range liquidity and back. On H4 and D1: the <b>dealing range</b> is the external high and low; <b>ERL</b> = the stops beyond them; <b>IRL</b> = unfilled fair value gaps inside. The last event sets the next draw: took the range high → down to IRL; took the range low → up to IRL; traded into a bullish FVG → up to the range high; into a bearish FVG → down to the range low.</p>
+  <p class="small muted">Spec v23: much better than the D1+H4 trend as this strategy's bias on GBP/USD + gold (+0.09 to +0.46R vs −0.59R) but it did not hold on EUR/USD + silver, so it is shown as information on each card and in the tracking line, not used as a rule. Say the word if you want it to replace the trend bias anyway.</p>
+</section>
+
 <h2 id="toni" style="margin-top:22px">3 · Toni Iyke (structure → inducement → POI)</h2>
 <section class="card">
   <p class="small"><b>Evidence, honestly:</b> {{ strategies.toni.evidence }} Official videos and paid-class notes merged into one strategy (the classes are the detailed version).</p>

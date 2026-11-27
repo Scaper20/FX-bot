@@ -82,7 +82,8 @@
     {{ w.text }}
     {% if w.level is not none and w.distance is not none %} Price now <span class="mono">{{ price(w.pair, w.price) }}</span>,
       {% if w.beyond_now %}<b>past the level right now</b>: it counts only if the candle closes there ({{ loc(w.closes_at, '%H:%M') }}).{% else %}{{ '%.1f pips' % (w.distance * 10000) if w.pair == 'GBPUSD' else '$%.2f' % w.distance }} away.{% endif %}
-    {% endif %}</li>
+    {% endif %}
+    {% if w.irl_erl %}<br><span class="small muted">IRL/ERL: {{ w.irl_erl }}.</span>{% endif %}</li>
 {% endfor %}
 </ul>
 <p class="muted small">Final step: when every rule is met, the limit order appears above as a setup card. These lines are heads-ups only; nothing here is logged.</p>

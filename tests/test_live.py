@@ -157,6 +157,8 @@ def test_smc_live_cards_follow_spec_v22(feed):
             assert op["session"] != ""
         o = op["order"]
         assert o["hold_tf"] == "D1" and o["hold_n"] == MODELS[c["strategy"]]["hold"] and not o["market"]
+        ie = c["smc"]["irl_erl"]
+        assert set(ie) == {"H4", "D1"} and all(v["bias"] in (-1, 0, 1) and isinstance(v["agrees"], bool) for v in ie.values())
 
 
 def test_smc_watch_level_is_the_one_the_strategy_breaks(feed):

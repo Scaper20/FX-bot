@@ -16,7 +16,7 @@ from .calendar import next_closes
 from .sessions import friday_late, in_killzone, session_flags
 from .setups import Market
 from .smc_models import LOOK, lingard_setups, orderblock_setups, toni_setups
-from .smc_structure import external_structure
+from .smc_structure import external_structure, irl_erl_bias
 from .strategies import STRATEGIES
 
 STATS_FILE = Path(__file__).resolve().parent / "data" / "smc_v22_stats.json"
@@ -61,6 +61,36 @@ def trend(mkt: Market, tf: str, t_ns: int) -> int:
         if cl[e["j"]] > t_ns:
             break
         out = e["dir"]
+    return out
+
+
+IE_TEXT = {"erl_high": "took the range high (buy-side ERL), next draw: IRL below",
+           "erl_low": "took the range low (sell-side ERL), next draw: IRL above",
+           "irl_bull": "traded into a bullish FVG (IRL), next draw: ERL high",
+           "irl_bear": "traded into a bearish FVG (IRL), next draw: ERL low", "": "no liquidity event yet"}
+
+
+def irl_erl(mkt: Market, tf: str, t_ns: int) -> dict:
+    """IRL/ERL state on tf known at t_ns (spec v23): bias +1/-1/0 and the last liquidity event."""
+    F = mkt.frames[tf]
+    if len(F) < 25:
+        return {"bias": 0, "event": "", "text": IE_TEXT[""]}
+    b, last = irl_erl_bias(*_ohlc(F))
+    cl = pd.DatetimeIndex(F["close_time_utc"]).as_unit("ns").asi8
+    i = int(np.searchsorted(cl, t_ns, side="right")) - 1
+    if i < 0:
+        return {"bias": 0, "event": "", "text": IE_TEXT[""]}
+    return {"bias": int(b[i]), "event": str(last[i]), "text": IE_TEXT[str(last[i])]}
+
+
+def _ie_summary(mkt: Market, t_ns: int, d: int | None = None) -> dict:
+    out = {}
+    for tf in ("H4", "D1"):
+        st = irl_erl(mkt, tf, t_ns)
+        st["word"] = WORD[st["bias"]]
+        if d is not None:
+            st["agrees"] = st["bias"] == d
+        out[tf] = st
     return out
 
 
@@ -158,14 +188,16 @@ def scan_smc_pair(mkt: Market, pair: str, spread: float) -> list[dict]:
                         "zone": {"start": _ts(to[zf]), "end": _ts(to[zl]), "low": float(zlo), "high": float(zhi),
                                  "label": zone_label},
                         "line": {"start": _ts(to[lf]), "end": _ts(to[lt]), "price": float(lpx), "label": llab},
-                        "origin": origin},
+                        "origin": origin, "irl_erl": _ie_summary(mkt, t_dec, d)},
                 "entry_status": {m["tf"]: "ok"}, "options": [option], "features": {}, "engine": ENGINE_VERSION,
                 "state": "ready", "recommended": True, "best": oid, "decision_time": dec.isoformat(),
                 "checks": [{"group": "Bias", "label": f"{tf} trend {word}", "ok": True, "note": ""} for tf in m["bias"]]
                 + [{"group": "Structure", "label": f"{m['tf']} {trig}", "ok": True, "note": s["variant"]},
                    {"group": "Entry", "label": f"{zone_label} at the zone edge", "ok": True, "note": ""},
                    {"group": "Info", "label": "London / New York session",
-                    "ok": session != "", "note": session or "outside both sessions"}],
+                    "ok": session != "", "note": session or "outside both sessions"}]
+                + [{"group": "Info", "label": f"IRL/ERL {tf} points the same way (not a rule yet, spec v23)",
+                    "ok": v["agrees"], "note": v["text"]} for tf, v in _ie_summary(mkt, t_dec, d).items()],
                 "chart": {"range": _candles(F.iloc[max(0, zf - 40):], None, 160),
                           "entry": _candles(F.iloc[max(0, zf - 40):], None, 160),
                           "entry_tf": m["tf"], "tfs": all_tf_candles(mkt)},
@@ -199,7 +231,9 @@ def watch_smc_pair(mkt: Market, pair: str) -> list[dict]:
         forming = M5[M5.index.as_unit("ns").asi8 >= now]
         biases = {tf: trend(mkt, tf, now) for tf in m["bias"]}
         bias_txt = " · ".join(f"{tf} {WORD[v]}" for tf, v in biases.items())
+        ie = _ie_summary(mkt, now)
         w = {"pair": pair, "strategy": key, "price": price, "bias": bias_txt, "direction": None, "step": 1,
+             "irl_erl": " · ".join(f"{tf} {v['text']}" for tf, v in ie.items()) if key == "smc_ob" else "",
              "steps": 3, "title": "Bias", "level": None, "beyond_now": False, "distance": None,
              "closes_at": _ts(next_closes(m["tf"], now, 1)[0])}
         vals = set(biases.values())

@@ -18,6 +18,8 @@
     <div><span>{{ card.smc.origin.label }}</span><b>{{ price(card.pair, card.smc.origin.price) }}</b></div>
     <div><span>{{ card.smc.zone.label }}</span><b>{{ price(card.pair, card.smc.zone.low) }} – {{ price(card.pair, card.smc.zone.high) }}</b></div>
   </div>
+  {% if card.smc.irl_erl %}<p class="small">IRL/ERL (information, not a rule yet):
+    {% for tf, v in card.smc.irl_erl.items() %}<span class="pill {{ 'ok' if v.agrees else 'warn' }}">{{ tf }} {{ v.word }}</span> {{ v.text }}{{ '; ' if not loop.last }}{% endfor %}.</p>{% endif %}
   {% else %}
   <div class="kv">
     <div><span>Range high</span><b>{{ price(card.pair, card.range_high) }}</b></div>
