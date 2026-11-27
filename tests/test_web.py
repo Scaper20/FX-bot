@@ -428,3 +428,30 @@ def test_short_d1_history_is_backfilled_one_call_per_scan(env):
     assert len(grew) == 1                                                       # one backfill call per scan
     h = service.d1_history(store, grew[0])
     assert h.index.is_monotonic_increasing and not h.index.has_duplicates
+
+
+def test_losses_review_flow(env):
+    from web import losses
+    app, store, clock = env
+    if not losses.items():
+        pytest.skip("losses set not built")
+    c = app.test_client()
+    login(c)
+    page = c.get("/losses").get_data(as_text=True)
+    assert "Losses to review" in page and "0 of" in page
+    x = losses.items()[0]
+    page = c.get(f"/losses/{x['id']}?strategy={x['strategy']}").get_data(as_text=True)
+    assert "Why did it lose?" in page and f'data-src="/api/chart/loss/{x["id"]}"' in page
+    j = c.get(f"/api/chart/loss/{x['id']}").get_json()
+    assert set(j["tfs"]) >= {"M5", "M15", "H1", "H4", "D1"} and any(j["after"].values())
+    assert {lv["title"] for lv in j["levels"]} >= {"Stop", "Target"}
+    tok = csrf(c, f"/losses/{x['id']}")
+    r = c.post(f"/losses/{x['id']}?strategy={x['strategy']}",
+               data={"csrf": tok, "verdict": "invalid", "reasons": ["against_htf", "bogus"], "notes": "late", "go": "next"})
+    assert r.status_code == 302 and "saved=1" in r.headers["Location"] and x["id"] not in r.headers["Location"]
+    fb = losses.feedback(store)[x["id"]]
+    assert fb["verdict"] == "invalid" and fb["reasons"] == ["against_htf"] and fb["notes"] == "late"
+    st = c.get("/losses/stats").get_data(as_text=True)
+    assert "1 of" in st and "Against the higher-timeframe direction" in st
+    assert c.post(f"/losses/{x['id']}", data={"csrf": tok, "verdict": "nope"}).status_code == 400
+    assert c.get("/losses/L-nope").status_code == 404

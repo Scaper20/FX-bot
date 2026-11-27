@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Loss feedback · Setup Scanner{% endblock %}
+{% block content %}
+<div class="row spread">
+  <h1>What your loss reviews show</h1>
+  <span class="small"><a href="{{ url_for('losses_page') }}">Back to the losses</a></span>
+</div>
+<p class="muted">{{ st.n }} of {{ ov.total }} losing trades reviewed.{% if st.n %} Trades you marked "not a valid setup" lost {{ '%.1f' % -st.invalid_R }}R between them; if the rules can learn to skip those, that is what they would save (before counting any winners the same change might also skip).{% endif %}</p>
+{% if not st.n %}
+<div class="card empty"><p>No reviews yet. <a href="{{ url_for('losses_page', status='todo') }}">Start with the losses not reviewed yet</a>.</p></div>
+{% else %}
+<section class="card">
+  <h2>Your verdicts</h2>
+  <div class="tablewrap"><table class="rtable">
+    <thead><tr><th>Strategy</th><th class="num">Reviewed</th>{% for k, text in verdicts.items() %}<th class="num" title="{{ text }}">{{ text.split(':')[0].split(' (')[0] }}</th>{% endfor %}</tr></thead>
+    <tbody>
+    {% for sid, g in st.by_strategy.items() %}
+      <tr><td data-label="Strategy">{{ strategies[sid].name }}</td><td class="num" data-label="Reviewed">{{ g.n }}</td>
+        {% for k in verdicts %}<td class="num" data-label="{{ k }}">{{ g.verdicts[k] }}</td>{% endfor %}</tr>
+    {% endfor %}
+    </tbody>
+    <tfoot><tr><td>All</td><td class="num">{{ st.n }}</td>{% for k in verdicts %}<td class="num">{{ st.verdicts[k] }}</td>{% endfor %}</tr></tfoot>
+  </table></div>
+</section>
+<section class="card">
+  <h2>What went wrong, by strategy</h2>
+  {% for sid, g in st.by_strategy.items() %}
+  <h3 style="margin:10px 0 4px">{{ strategies[sid].name }} <span class="muted small">({{ g.n }} reviewed)</span></h3>
+  {% if g.reasons %}<ul style="margin:0;padding-left:18px">{% for k, n in g.reasons.most_common() %}<li>{{ reason_label[k] }}: <b>{{ n }}</b> ({{ (100 * n / g.n) | round | int }}%)</li>{% endfor %}</ul>
+  {% else %}<p class="muted small">No reasons ticked.</p>{% endif %}
+  {% endfor %}
+</section>
+<section class="card">
+  <h2>Your reasons against what price did</h2>
+  <p class="small muted">My grouping (what price did) next to yours (why). Where they line up, a rule change can target it.</p>
+  {% for c, g in st.by_cat | dictsort %}
+  <h3 style="margin:10px 0 4px">{{ c }} · {{ cats[c] }} <span class="muted small">({{ g.n }} reviewed)</span></h3>
+  {% if g.reasons %}<ul style="margin:0;padding-left:18px">{% for k, n in g.reasons.most_common(5) %}<li>{{ reason_label[k] }}: <b>{{ n }}</b></li>{% endfor %}</ul>
+  {% else %}<p class="muted small">No reasons ticked.</p>{% endif %}
+  {% endfor %}
+</section>
+{% endif %}
+{% endblock %}

@@ -23,7 +23,7 @@ from engine.live import ENGINE_VERSION, TRIGGER_LABEL, load_stats
 from engine.sessions import LONDON, NEW_YORK
 from engine.strategies import STRATEGIES, strategy_of
 
-from . import chartdata, charts, community, insights, mailer, plan, reminders, service, zones
+from . import chartdata, charts, community, insights, losses, mailer, plan, reminders, service, zones
 from .store import StoreError, from_env, merged_settings
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -373,6 +373,71 @@ def create_app(store=None, feed=None, now_fn=None) -> Flask:
     @login_required
     def train_stats():
         return render_template("train_stats.html", st=zones.stats(store()), kinds=zones.KINDS, labels=zones.LABELS)
+
+    # ------------------------------------------------------------ losses to review
+    def _loss_filters() -> dict:
+        a = request.args
+        return {k: (a.get(k) or "") for k in ("strategy", "cat", "pair", "status")}
+
+    @app.route("/losses")
+    @login_required
+    def losses_page():
+        flt = _loss_filters()
+        fb = losses.feedback(store())
+        lst = losses.filtered(fb, **flt)
+        start = next((x["id"] for x in lst if x["id"] not in fb), lst[0]["id"] if lst else None)
+        return render_template("losses.html", lst=lst, fb=fb, flt=flt, fq={k: v for k, v in flt.items() if v},
+                               start_id=start, ov=losses.overview(fb), cats=losses.CATS, verdicts=losses.VERDICTS,
+                               nav="losses")
+
+    @app.route("/losses/<lid>", methods=["GET", "POST"])
+    @login_required
+    def loss_item(lid):
+        x = losses.item(lid)
+        if not x:
+            abort(404)
+        flt = _loss_filters()
+        fb = losses.feedback(store())
+        if request.method == "POST":
+            check_csrf()
+            verdict = request.form.get("verdict")
+            if verdict not in losses.VERDICTS:
+                abort(400)
+            reasons = [t for t in request.form.getlist("reasons") if t in losses.REASON_LABEL]
+            store().add_loss_review({"item_id": lid, "verdict": verdict, "reasons": reasons,
+                                     "notes": (request.form.get("notes") or "")[:2000]})
+            fb[lid] = {"verdict": verdict}
+            nb = losses.neighbours(losses.filtered(fb, **flt), lid, fb)
+            if request.form.get("go") == "next" and nb["next_todo"]:
+                return redirect(url_for("loss_item", lid=nb["next_todo"], saved=1, **{k: v for k, v in flt.items() if v}))
+            return redirect(url_for("loss_item", lid=lid, saved=1, **{k: v for k, v in flt.items() if v}))
+        card = x["card"]
+        op = service.option_by_id(card, x["option"])
+        nb = losses.neighbours(losses.filtered(fb, **flt), lid, fb)
+        return render_template("loss_item.html", x=x, card=card, op=op, fb=fb.get(lid), nb=nb, flt=flt,
+                               fq={k: v for k, v in flt.items() if v},
+                               cats=losses.CATS, verdicts=losses.VERDICTS, reasons=losses.REASONS,
+                               story=losses.story(x), text=charts.text_equivalent(card, op),
+                               saved=bool(request.args.get("saved")), nav="losses",
+                               chart_src=url_for("chart_loss", lid=lid))
+
+    @app.route("/losses/stats")
+    @login_required
+    def losses_stats():
+        fb = losses.feedback(store())
+        return render_template("losses_stats.html", st=losses.stats(fb), ov=losses.overview(fb), cats=losses.CATS,
+                               verdicts=losses.VERDICTS, reason_label=losses.REASON_LABEL, nav="losses")
+
+    @app.route("/api/chart/loss/<lid>")
+    @login_required
+    def chart_loss(lid):
+        x = losses.item(lid)
+        ch = losses.chart(lid) if x else None
+        if not x or not ch:
+            abort(404)
+        card = x["card"]
+        op = service.option_by_id(card, x["option"])
+        return jsonify(chartdata.payload(card, op, ch["before"], ch["after"], 0, reveal_from=x["shown"]))
 
     @app.route("/strategy")
     @login_required

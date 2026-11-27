@@ -68,6 +68,7 @@ class MemoryStore:
         self.db.setdefault("latest_candles", {})
         self.db.setdefault("community_emails", [])
         self.db.setdefault("zone_labels", [])
+        self.db.setdefault("loss_reviews", [])
 
     def _save(self):
         if self.path:
@@ -159,6 +160,19 @@ class MemoryStore:
 
     def list_zone_labels(self) -> list[dict]:
         return copy.deepcopy(sorted(self.db["zone_labels"], key=lambda r: r["created_at"]))
+
+    # losses to review (Ore's feedback on losing trades)
+    def add_loss_review(self, row: dict) -> None:
+        with self.lock:
+            self.db["loss_reviews"] = [r for r in self.db["loss_reviews"] if r["item_id"] != row["item_id"]]
+            r = {"reasons": [], "notes": ""}
+            r.update(copy.deepcopy(row))
+            r["created_at"] = now_iso()
+            self.db["loss_reviews"].append(r)
+            self._save()
+
+    def list_loss_reviews(self) -> list[dict]:
+        return copy.deepcopy(sorted(self.db["loss_reviews"], key=lambda r: r["created_at"]))
 
     # scans
     def add_scan(self, row: dict) -> None:
@@ -391,6 +405,15 @@ class SupabaseStore:
 
     def list_zone_labels(self) -> list[dict]:
         return self._req("GET", "zone_labels", {"select": "*", "order": "created_at.asc", "limit": "5000"}) or []
+
+    # losses to review
+    def add_loss_review(self, row: dict) -> None:
+        body = {"reasons": [], "notes": "", **row, "created_at": now_iso()}
+        self._req("POST", "loss_reviews", {"on_conflict": "item_id"}, body=body,
+                  prefer="resolution=merge-duplicates,return=minimal")
+
+    def list_loss_reviews(self) -> list[dict]:
+        return self._req("GET", "loss_reviews", {"select": "*", "order": "created_at.asc", "limit": "5000"}) or []
 
     # scans
     def add_scan(self, row: dict) -> None:

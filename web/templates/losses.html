@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Losses · Setup Scanner{% endblock %}
+{% block content %}
+<div class="row spread">
+  <h1>Losses to review</h1>
+  <span class="muted small">{{ ov.done }} of {{ ov.total }} reviewed · <a href="{{ url_for('losses_stats') }}">what your feedback shows</a></span>
+</div>
+<div class="bar" aria-hidden="true"><i style="width:{{ (100 * ov.done / ov.total) if ov.total else 0 }}%"></i></div>
+<p class="muted">Every losing trade the live scanner would have taken from January 2025 to 27 November 2026 (GBP/USD and gold, all strategies, after your spreads). Open one to see the whole trade on the chart, what happened in numbers, and tell me why it lost. Your answers are saved and I use them to find what the rules get wrong.</p>
+
+<section class="card">
+  <h2>By strategy and what happened</h2>
+  <div class="tablewrap"><table class="rtable">
+    <thead><tr><th>Strategy</th><th class="num">Losses</th>{% for c, text in cats.items() %}<th class="num" title="{{ text }}">{{ c }}</th>{% endfor %}<th class="num">Reviewed</th></tr></thead>
+    <tbody>
+    {% for sid, g in ov.grid %}
+      <tr><td data-label="Strategy"><a href="{{ url_for('losses_page', strategy=sid) }}">{{ strategies[sid].name }}</a></td>
+        <td class="num" data-label="Losses">{{ g.total }}</td>
+        {% for c in cats %}<td class="num" data-label="{{ c }}">{% if g[c] %}<a href="{{ url_for('losses_page', strategy=sid, cat=c) }}">{{ g[c] }}</a>{% else %}0{% endif %}</td>{% endfor %}
+        <td class="num" data-label="Reviewed">{{ g.done }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  <ul class="small muted" style="margin:8px 0 0;padding-left:18px">
+    {% for c, text in cats.items() %}<li><b>{{ c }}</b> · {{ text }} ({{ ov.cat_totals[c] }})</li>{% endfor %}
+  </ul>
+  <p class="small muted">My grouping is measured, not judged: it says what price did, not whether the setup was right. That part is yours.</p>
+</section>
+
+<section class="card">
+  <form method="get" action="{{ url_for('losses_page') }}" class="row" style="gap:8px;flex-wrap:wrap;align-items:flex-end">
+    <label>Strategy<select name="strategy"><option value="">All</option>{% for sid, g in ov.grid %}<option value="{{ sid }}" {{ 'selected' if flt.strategy == sid }}>{{ strategies[sid].name }}</option>{% endfor %}</select></label>
+    <label>What happened<select name="cat"><option value="">All</option>{% for c, text in cats.items() %}<option value="{{ c }}" {{ 'selected' if flt.cat == c }}>{{ c }} · {{ text }}</option>{% endfor %}</select></label>
+    <label>Pair<select name="pair"><option value="">Both</option><option value="GBPUSD" {{ 'selected' if flt.pair == 'GBPUSD' }}>GBP/USD</option><option value="XAUUSD" {{ 'selected' if flt.pair == 'XAUUSD' }}>Gold</option></select></label>
+    <label>Status<select name="status"><option value="">All</option><option value="todo" {{ 'selected' if flt.status == 'todo' }}>Not reviewed yet</option><option value="done" {{ 'selected' if flt.status == 'done' }}>Reviewed</option></select></label>
+    <button class="btn small" type="submit">Show</button>
+    {% if start_id %}<a class="btn small ghost" href="{{ url_for('loss_item', lid=start_id, **fq) }}">Start reviewing</a>{% endif %}
+  </form>
+  <p class="small muted" style="margin-top:8px">{{ lst | length }} trade{{ '' if lst | length == 1 else 's' }} shown.</p>
+  <div class="tablewrap"><table class="rtable">
+    <thead><tr><th>Shown (GMT+0)</th><th>Pair</th><th>Strategy</th><th>Side</th><th>What happened</th><th class="num">Best point</th><th>Your verdict</th></tr></thead>
+    <tbody>
+    {% for x in lst %}
+      <tr><td data-label="Shown"><a href="{{ url_for('loss_item', lid=x.id, **fq) }}">{{ x.shown[:16].replace('T', ' ') }}</a></td>
+        <td data-label="Pair">{{ 'Gold' if x.pair == 'XAUUSD' else 'GBP/USD' }}</td>
+        <td data-label="Strategy">{{ strategies[x.strategy].name }}{% if x.tf %} <span class="pill">{{ x.tf }}</span>{% endif %}</td>
+        <td data-label="Side"><span class="pill {{ x.direction }}">{{ 'Buy' if x.direction == 'long' else 'Sell' }}</span></td>
+        <td data-label="What happened"><span class="pill" title="{{ cats[x.cat] }}">{{ x.cat }}</span> <span class="small">{{ cats[x.cat] }}</span></td>
+        <td class="num" data-label="Best point">{{ '%+.1f' % x.facts.mfe_R }}R</td>
+        <td data-label="Your verdict">{% if fb.get(x.id) %}<span class="pill {{ 'bad' if fb[x.id].verdict == 'invalid' else 'warn' if fb[x.id].verdict == 'managed' else 'ok' if fb[x.id].verdict == 'valid' else '' }}">{{ verdicts[fb[x.id].verdict].split(':')[0].split(' (')[0] }}</span>{% else %}<span class="muted small">not yet</span>{% endif %}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</section>
+{% endblock %}
