@@ -22,13 +22,14 @@ import numpy as np
 CONFIRM = 2          # lower highs after the leg high that fix it as the external high
 
 
-def external_structure(o, h, l, c, mode: str = "close", warmup: int = 20) -> list[dict]:
+def external_structure(o, h, l, c, mode: str = "close", warmup: int = 20, track: bool = False):
     """Events in time order. Each: kind ('BOS'/'MSS'), dir (+1 bull / -1 bear), j (break candle),
     broken (index of the swing that was broken), protected (index of the new protected swing = origin of the
     move that broke), level (broken price)."""
     n = len(c)
     if n <= warmup + 2:
-        return []
+        return ([], np.full(n, np.nan), np.full(n, np.nan)) if track else []
+    rng_hi, rng_lo = np.full(n, np.nan), np.full(n, np.nan)
     up_px = c if mode == "close" else h
     dn_px = c if mode == "close" else l
     hi = int(np.argmax(h[:warmup]))
@@ -64,7 +65,8 @@ def external_structure(o, h, l, c, mode: str = "close", warmup: int = 20) -> lis
                 prot = hi if h[hi] >= h[prot] else prot
             events.append({"kind": kind, "dir": -1, "j": j, "broken": lo, "protected": prot, "level": float(l[lo])})
             trend, hi, hi_fixed, lo, lo_fixed = -1, prot, True, j, False
-    return events
+        rng_hi[j], rng_lo[j] = h[hi], l[lo]
+    return (events, rng_hi, rng_lo) if track else events
 
 
 def trend_at(events: list[dict], t_close_ns, frame_close_ns) -> int:
@@ -129,3 +131,55 @@ def ore_order_block(o, h, l, c, origin: int, direction: int, ahead: int = 2):
     sg = -1.0 if direction == 1 else 1.0
     return {"first": f, "last": last, "kind": kind, "near": float(sg * l[f]),
             "far": float(sg * h[f:last + 1].max()), "body_edge": float(sg * min(o[f], c[f]))}
+
+
+def dealing_range(o, h, l, c, mode: str = "close", warmup: int = 20):
+    """The external range known at the close of each candle, straight from external_structure's own state:
+    rng_hi[k] = the external high (fixed, or the running leg high), rng_lo[k] = the external / protected low."""
+    _, rng_hi, rng_lo = external_structure(o, h, l, c, mode, warmup, track=True)
+    return rng_hi, rng_lo
+
+
+def irl_erl_bias(o, h, l, c, mode: str = "close"):
+    """ICT 'price moves from internal to external range liquidity and back' as a bias, known at each close.
+
+    ERL = the dealing range's extremes (beyond them rest the stops); IRL = unfilled FVGs inside the range.
+    The last liquidity event decides the next draw:
+      took the range high (buy-side ERL)  -> bias -1 (next draw: IRL below)
+      took the range low (sell-side ERL)  -> bias +1 (next draw: IRL above)
+      traded into an unfilled bullish FVG -> bias +1 (next draw: ERL high)
+      traded into an unfilled bearish FVG -> bias -1 (next draw: ERL low)
+    Returns (bias, last_event) arrays; last_event codes: 'erl_high', 'erl_low', 'irl_bull', 'irl_bear', ''."""
+    n = len(c)
+    rng_hi, rng_lo = dealing_range(o, h, l, c, mode)
+    bias = np.zeros(n, dtype=int)
+    last = np.array([""] * n, dtype=object)
+    bull, bear = [], []                           # unfilled FVGs: (top, bottom)
+    cur_b, cur_e = 0, ""
+    for k in range(3, n):
+        # FVGs completed by candle k-1 are known now (made by candles k-3, k-2, k-1)
+        x = k - 3
+        if l[x + 2] > h[x]:
+            bull.append((l[x + 2], h[x]))
+        if h[x + 2] < l[x]:
+            bear.append((l[x], h[x + 2]))
+        prev_hi, prev_lo = rng_hi[k - 1], rng_lo[k - 1]
+        ev = ""
+        if not np.isnan(prev_hi) and h[k] > prev_hi:
+            ev = "erl_high"
+        elif not np.isnan(prev_lo) and l[k] < prev_lo:
+            ev = "erl_low"
+        else:
+            inside = lambda top, bot: (np.isnan(prev_lo) or bot >= prev_lo) and (np.isnan(prev_hi) or top <= prev_hi)
+            if any(l[k] <= top and inside(top, bot) for top, bot in bull):
+                ev = "irl_bull"
+            elif any(h[k] >= bot and inside(top, bot) for top, bot in bear):
+                ev = "irl_bear"
+        # gaps that were traded into or closed through are used up
+        bull = [(t, b) for t, b in bull if l[k] > t]
+        bear = [(t, b) for t, b in bear if h[k] < b]
+        if ev:
+            cur_e = ev
+            cur_b = {"erl_high": -1, "erl_low": 1, "irl_bull": 1, "irl_bear": -1}[ev]
+        bias[k], last[k] = cur_b, cur_e
+    return bias, last
