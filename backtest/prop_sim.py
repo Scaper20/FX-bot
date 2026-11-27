@@ -35,6 +35,8 @@ class Rules:
     leverage: dict = field(default_factory=lambda: {"GBPUSD": 30, "XAUUSD": 10})
     contract: dict = field(default_factory=lambda: {"GBPUSD": 100_000, "XAUUSD": 100})
     no_hedge: bool = True         # hedging is prohibited: skip a trade opposite an open one on the same pair
+    payout_days: int | None = None  # funded stage: pay out profit every N days (no target)
+    split: float = 0.8
 
 
 @dataclass
@@ -102,6 +104,7 @@ def run(trades: pd.DataFrame, rules: Rules, plan: Plan, start: pd.Timestamp, hor
     stopd = np.abs(t["entry"].to_numpy(float) - t["stop"].to_numpy(float)) if "stop" in t else np.ones(len(t))
     mfe = t["mfe"].to_numpy(float) if "mfe" in t else np.zeros(len(t))
     at_fill = {}
+    paid, n_pay, next_pay = 0.0, 0, None
     taken, days_traded = set(), set()
     cur_day, day_start, day_pnl = None, bal, 0.0
     R = t["R"].to_numpy(float)
@@ -109,6 +112,12 @@ def run(trades: pd.DataFrame, rules: Rules, plan: Plan, start: pd.Timestamp, hor
         d = day(ts)
         if d != cur_day:
             cur_day, day_start, day_pnl = d, bal, 0.0
+        if rules.payout_days and next_pay is not None and ts >= next_pay and not open_:
+            if bal > rules.balance:                           # funded payout: profit above the start, then reset
+                paid += rules.split * (bal - rules.balance)
+                n_pay += 1
+                bal, peak = rules.balance, rules.balance
+            next_pay = next_pay + pd.Timedelta(days=rules.payout_days)
         if kind == 1:
             if plan.daily_stop is not None and day_pnl <= -plan.daily_stop * rules.balance:
                 continue
@@ -134,6 +143,8 @@ def run(trades: pd.DataFrame, rules: Rules, plan: Plan, start: pd.Timestamp, hor
                 continue
             size[i] = r_usd
             at_fill[i] = bal
+            if rules.payout_days and next_pay is None:
+                next_pay = ts + pd.Timedelta(days=rules.payout_days)
             open_.add(i)
             taken.add(i)
             days_traded.add(d)
@@ -150,13 +161,19 @@ def run(trades: pd.DataFrame, rules: Rules, plan: Plan, start: pd.Timestamp, hor
         if rules.lock_at_start:
             floor = min(floor, rules.balance)
         if bal - day_start <= -rules.daily * rules.balance:
-            return {"result": "fail", "why": "daily", "days": (ts - start).days, "trades": len(taken)}
+            return {"result": "fail", "why": "daily", "days": (ts - start).days, "trades": len(taken),
+                    "paid": round(paid, 2), "payouts": n_pay}
         if bal <= floor:
-            return {"result": "fail", "why": "trailing", "days": (ts - start).days, "trades": len(taken)}
+            return {"result": "fail", "why": "trailing", "days": (ts - start).days, "trades": len(taken),
+                    "paid": round(paid, 2), "payouts": n_pay}
         peak = max(peak, bal)
-        if bal >= target_bal and len(days_traded) >= rules.min_days and not open_:
+        if not rules.payout_days and bal >= target_bal and len(days_traded) >= rules.min_days and not open_:
             return {"result": "pass", "why": "", "days": (ts - start).days, "trades": len(taken)}
-    return {"result": "open", "why": "", "days": horizon_days, "trades": len(taken)}
+    if rules.payout_days and bal > rules.balance and not open_:
+        paid += rules.split * (bal - rules.balance)
+        n_pay += 1
+    return {"result": "open", "why": "", "days": horizon_days, "trades": len(taken), "paid": round(paid, 2),
+            "payouts": n_pay}
 
 
 def evaluate(trades, rules, plan, horizon_days=182):
@@ -238,3 +255,14 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
+
+
+def funded_value(trades, rules, plan, horizon_days=182):
+    """Average payout over the funded stage started on every Monday (same limits, payouts every 14 days)."""
+    fr = Rules(**{**rules.__dict__, "payout_days": 14})
+    first, last = trades["fill"].min().floor("D"), trades["fill"].max()
+    starts = pd.date_range(first - pd.Timedelta(days=first.dayofweek), last - pd.Timedelta(days=horizon_days), freq="7D")
+    res = pd.DataFrame([run(trades, fr, plan, s0, horizon_days) for s0 in starts])
+    return {"funded_avg_paid": round(res["paid"].mean(), 1), "funded_any_payout": round((res["paid"] > 0).mean(), 3),
+            "funded_breached": round((res["result"] == "fail").mean(), 3)}

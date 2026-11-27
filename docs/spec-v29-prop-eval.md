@@ -35,3 +35,26 @@ which of the two trailing definitions applies (simulated: the stricter one).
 This is a plan, not a rule test: the trade record is the same 2022-2026 replay the strategies were judged on. The
 pass rate is mostly set by risk size and luck when the average trade is near 0R, so the result is read together
 with the fee per pass ($19 / pass rate) and the failure mix.
+
+## Results (27 Nov 2026; `python -m backtest.prop_sim <replays> --candles <dir> --only N`; 659 live-scanner trades,
+June 2022 – Nov 2026; Equity Edge rules as above; challenges started every Monday)
+
+| Plan | Pass ≤ 6 months | Shuffled-history pass ≤ 12 m | Median days to pass | Funded payout (avg, 6 m) | Value of a $19 attempt |
+|---|---|---|---|---|---|
+| **Ore's model + IRL/ERL, 1.5% risk** | **31%** | 24% | 93 | $170 | **+$34** |
+| Ore's model + IRL/ERL, 2% | 32% | 26% | 87 | $201 | +$46 |
+| Ore's model + IRL/ERL, 1% | 13% | 21% | 98 | $133 | −$1 |
+| Ore's model + IRL/ERL + Lingard, 1.5% | 28% | 22% | 72 | $130 | +$18 |
+| Smart-money five, 2% | 16% | 14% | 15 | $46 | −$12 |
+| CRT only, 2% (taper) | 12% | 11% | 11 | $51 | −$13 |
+| All six, 1% | 10% | 10% | 10 | $47 | −$15 |
+
+- Below ~1% risk the challenge rarely finishes: Ore's model + IRL/ERL give ~11 trades a year, and 8% at 0.5% risk
+  needs ~16R of net profit (years).
+- The risk rules (daily stop 1.5%, halve after −2.5%, taper near target) moved pass rates by 0–2 points.
+- Gold at 1:10 leverage: at 1% risk 58% of gold CRT trades must be cut in size and one tight-stop gold trade can use
+  nearly all the margin; one more reason not to run CRT on this account.
+
+**Caveats.** Ore's model + IRL/ERL is ~49 trades in 4.5 years (+0.29R and +0.52R a trade) and both were chosen because
+their backtests looked best, so this plan rests on a small, selected sample; its positive value is not proven.
+News windows (no fills or exits within 2 minutes of high-impact news) and commissions are not simulated.
