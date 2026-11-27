@@ -23,6 +23,7 @@ STATS_FILE = Path(__file__).resolve().parent / "data" / "smc_v22_stats.json"
 MODELS = {
     "smc_ob": {"tf": "H1", "mode": "close", "bias": ("D1", "H4"), "target": "3R", "recent": 6, "hold": 5},
     "toni": {"tf": "H1", "mode": "close", "bias": ("D1",), "target": "liq", "recent": 6, "hold": 5},
+    "irl_erl": {"tf": "H1", "mode": "close", "bias": ("H4 IRL/ERL", "D1"), "target": "3R", "recent": 6, "hold": 5},
     "lingard": {"tf": "H4", "mode": "wick", "bias": ("D1",), "target": "5R", "recent": 2, "hold": 10,
                 "session": True},
 }
@@ -94,11 +95,25 @@ def _ie_summary(mkt: Market, t_ns: int, d: int | None = None) -> dict:
     return out
 
 
+def bias_value(mkt: Market, spec: str, t_ns: int) -> int:
+    """A bias source: 'D1' / 'H4' = external trend on that timeframe; 'H4 IRL/ERL' = the IRL/ERL draw (spec v23)."""
+    if spec.endswith(" IRL/ERL"):
+        return irl_erl(mkt, spec.split()[0], t_ns)["bias"]
+    return trend(mkt, spec, t_ns)
+
+
+def _bias_label(spec: str, v: int) -> str:
+    return f"{spec} {WORD[v]}" if spec.endswith("IRL/ERL") else f"{spec} trend {WORD[v]}"
+
+
 def _setups(key: str, o, h, l, c):
     m = MODELS[key]
     ev = external_structure(o, h, l, c, m["mode"])
-    if key == "smc_ob":
-        return orderblock_setups(o, h, l, c, ev), ev
+    if key in ("smc_ob", "irl_erl"):
+        out = orderblock_setups(o, h, l, c, ev)
+        for x in out:
+            x["model"] = key
+        return out, ev
     if key == "toni":
         return toni_setups(o, h, l, c, ev), ev
     return lingard_setups(o, h, l, c, ev, _atr(h, l, c)), ev
@@ -122,7 +137,7 @@ def scan_smc_pair(mkt: Market, pair: str, spread: float) -> list[dict]:
             if j < n - m["recent"]:
                 continue
             t_dec = int(tc[j])
-            biases = {tf: trend(mkt, tf, t_dec) for tf in m["bias"]}
+            biases = {tf: bias_value(mkt, tf, t_dec) for tf in m["bias"]}
             if any(v != d for v in biases.values()):
                 continue
             dec = pd.Timestamp(t_dec, tz="UTC")
@@ -163,7 +178,7 @@ def scan_smc_pair(mkt: Market, pair: str, spread: float) -> list[dict]:
             }
             zf, zl, zlo, zhi = s["zone"]
             lf, lt, lpx, llab = s["line"]
-            if key == "smc_ob":
+            if key in ("smc_ob", "irl_erl"):
                 p = s["origin"]
                 origin = {"time": _ts(to[p]), "price": float(h[p] if d == -1 else l[p]),
                           "label": "Top of the move" if d == -1 else "Bottom of the move"}
@@ -175,8 +190,7 @@ def scan_smc_pair(mkt: Market, pair: str, spread: float) -> list[dict]:
                 origin = {"time": _ts(to[s["pullback"]]), "price": float(s["liquidity"]),
                           "label": "Liquidity (first pullback)"}
                 zone_label = "Order block (POI)"
-            word = WORD[d]
-            bias_txt = " and ".join(f"{tf} {word}" for tf in m["bias"])
+            bias_txt = " and ".join(_bias_label(tf, d) for tf in m["bias"])
             card = {
                 "id": f"{pair}-{key.upper()}-{dec.strftime('%Y%m%d%H%M')}-{side}", "strategy": key, "model": key,
                 "model_label": STRATEGIES[key]["long"], "model_note": STRATEGIES[key]["evidence"],
@@ -191,7 +205,7 @@ def scan_smc_pair(mkt: Market, pair: str, spread: float) -> list[dict]:
                         "origin": origin, "irl_erl": _ie_summary(mkt, t_dec, d)},
                 "entry_status": {m["tf"]: "ok"}, "options": [option], "features": {}, "engine": ENGINE_VERSION,
                 "state": "ready", "recommended": True, "best": oid, "decision_time": dec.isoformat(),
-                "checks": [{"group": "Bias", "label": f"{tf} trend {word}", "ok": True, "note": ""} for tf in m["bias"]]
+                "checks": [{"group": "Bias", "label": _bias_label(tf, d), "ok": True, "note": ""} for tf in m["bias"]]
                 + [{"group": "Structure", "label": f"{m['tf']} {trig}", "ok": True, "note": s["variant"]},
                    {"group": "Entry", "label": f"{zone_label} at the zone edge", "ok": True, "note": ""},
                    {"group": "Info", "label": "London / New York session",
@@ -229,16 +243,16 @@ def watch_smc_pair(mkt: Market, pair: str) -> list[dict]:
         tc = pd.DatetimeIndex(F["close_time_utc"]).as_unit("ns").asi8
         now = int(tc[-1])
         forming = M5[M5.index.as_unit("ns").asi8 >= now]
-        biases = {tf: trend(mkt, tf, now) for tf in m["bias"]}
-        bias_txt = " · ".join(f"{tf} {WORD[v]}" for tf, v in biases.items())
+        biases = {tf: bias_value(mkt, tf, now) for tf in m["bias"]}
+        bias_txt = " · ".join(_bias_label(tf, v) for tf, v in biases.items())
         ie = _ie_summary(mkt, now)
         w = {"pair": pair, "strategy": key, "price": price, "bias": bias_txt, "direction": None, "step": 1,
-             "irl_erl": " · ".join(f"{tf} {v['text']}" for tf, v in ie.items()) if key == "smc_ob" else "",
+             "irl_erl": " · ".join(f"{tf} {v['text']}" for tf, v in ie.items()) if key in ("smc_ob", "irl_erl") else "",
              "steps": 3, "title": "Bias", "level": None, "beyond_now": False, "distance": None,
              "closes_at": _ts(next_closes(m["tf"], now, 1)[0])}
         vals = set(biases.values())
         if len(vals) != 1 or 0 in vals:
-            w["text"] = ("D1 and H4 don't agree, so there is no trade direction." if len(m["bias"]) > 1
+            w["text"] = (f"{' and '.join(m['bias'])} don't agree, so there is no trade direction." if len(m["bias"]) > 1
                          else "No clear D1 trend, so there is no trade direction.")
             out.append(w)
             continue

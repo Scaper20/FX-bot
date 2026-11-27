@@ -126,7 +126,7 @@ def test_twelvedata_missing_key(monkeypatch):
 def test_smc_live_cards_follow_spec_v22(feed):
     """Order block, Toni and Lingard cards: built by engine/smc_models (same code as backtest/smc_v22),
     bias agrees, zone and structure finished by the decision, stop beyond the entry, targets per strategy."""
-    from engine.smc_live import MODELS, scan_smc_pair, trend
+    from engine.smc_live import MODELS, bias_value, scan_smc_pair
     found = []
     for t in pd.date_range("2023-03-01", "2023-06-28", freq="5h", tz="UTC"):
         if t.weekday() >= 5:
@@ -136,7 +136,7 @@ def test_smc_live_cards_follow_spec_v22(feed):
                 m = MODELS[c["strategy"]]
                 dec = pd.Timestamp(c["decision_time"])
                 for tf in m["bias"]:
-                    assert trend(mkt, tf, dec.value) == (1 if c["direction"] == "long" else -1)
+                    assert bias_value(mkt, tf, dec.value) == (1 if c["direction"] == "long" else -1)
                 found.append(c)
     kinds = {c["strategy"] for c in found}
     assert {"smc_ob", "toni"} <= kinds, f"expected order-block and Toni setups in the replay, got {kinds}"
@@ -150,7 +150,7 @@ def test_smc_live_cards_follow_spec_v22(feed):
         assert pd.Timestamp(z["start"]) <= pd.Timestamp(op["decision_time"])
         assert pd.Timestamp(ln["end"]) < pd.Timestamp(op["decision_time"])
         risk = abs(op["entry"] - op["stop"])
-        if c["strategy"] == "smc_ob":
+        if c["strategy"] in ("smc_ob", "irl_erl"):
             assert abs(op["target"] - op["entry"]) == pytest.approx(3 * risk, rel=1e-9)
         if c["strategy"] == "lingard":
             assert abs(op["target"] - op["entry"]) == pytest.approx(5 * risk, rel=1e-9)
@@ -172,7 +172,7 @@ def test_smc_watch_level_is_the_one_the_strategy_breaks(feed):
             continue
         for pair, mkt in markets(feed, t).items():
             ws = watch_smc_pair(mkt, pair)
-            assert {w["strategy"] for w in ws} == {"smc_ob", "toni", "lingard"}
+            assert {w["strategy"] for w in ws} == {"smc_ob", "irl_erl", "toni", "lingard"}
             for w in ws:
                 titles.add(w["title"])
                 assert (w["direction"] is None) == (w["step"] == 1)

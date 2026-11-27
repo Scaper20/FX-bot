@@ -302,7 +302,7 @@ def test_smc_strategies_logged_and_shown_separately(env):
         sid = next(r["id"] for r in rows if r["card"]["strategy"] == strat)
         name = STRATEGIES[strat]["name"]
         page = c.get(f"/setup/{sid}").get_data(as_text=True)
-        assert name in page and "Range high" not in page and "no edge found" in page.lower()   # honest evidence
+        assert name in page and "Range high" not in page and STRATEGIES[strat]["evidence"][:30] in page   # honest evidence
         data = c.get(f"/api/chart/setup/{sid}").get_json()
         titles = {lv["title"] for lv in data["levels"]}
         assert {"Entry (zone edge)", "Stop", "Target"} <= titles
@@ -311,7 +311,8 @@ def test_smc_strategies_logged_and_shown_separately(env):
         assert sid in jr and sid not in c.get("/journal?strategy=crt").get_data(as_text=True)
         assert c.get(f"/?strategy={strat}").status_code == 200
     perf = c.get("/performance").get_data(as_text=True)
-    for s in ("Live · Order block", "Live · Toni Iyke", "Live · Lingard", "Live · CRT", "Live · all strategies together"):
+    for s in ("Live · Order block", "Live · IRL/ERL", "Live · Toni Iyke", "Live · Lingard", "Live · CRT",
+              "Live · all strategies together"):
         assert s in perf
     total = sum(service.performance(store, "live", k)["rows"] for k in STRATEGIES)
     assert total == service.performance(store, "live")["rows"]                    # split adds up, nothing lost

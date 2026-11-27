@@ -137,6 +137,22 @@ def report() -> int:
           f"2023–26): {f(v['avg'])}R over {v['trades']} trades, positive in {v['years_pos']} of 4 years → "
           f"**{'PASS' if v['pass'] else 'fail'}**.", ""]
     REPORT.write_text("\n".join(L) + "\n")
+    # live card history for the IRL/ERL strategy (order-block entry, H4 IRL/ERL + D1 trend), merged into the SMC stats
+    import json
+    from backtest.smc_v22 import STATS
+    allst = json.loads(STATS.read_text()) if STATS.exists() else {}
+    g = d[(d["entry"] == "OB") & d["ie_h4_d1trend"].astype(bool)]
+    fr = stats(g[g["pair"].isin(FRESH)])
+    allst["irl_erl"] = {}
+    for pair, gp in g[g["pair"].isin(MAIN)].groupby("pair"):
+        sp = stats(gp)
+        allst["irl_erl"][pair] = {"n": int(sp["n"]), "avg_R": round(float(sp["avg"]), 3),
+                                  "win_rate": round(float((gp["R"] > 0).mean()), 3),
+                                  "first": pd.Timestamp(int(gp["t_dec"].min()), tz="UTC").isoformat(),
+                                  "last": pd.Timestamp(int(gp["t_dec"].max()), tz="UTC").isoformat(),
+                                  "enough": bool(sp["n"] >= 30), "score": round(float(sp["avg"]), 3),
+                                  "fresh_avg_R": round(float(fr["avg"]), 3), "fresh_n": int(fr["n"])}
+    STATS.write_text(json.dumps(allst, indent=1))
     print("\n".join(L))
     return 0
 

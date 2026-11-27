@@ -25,6 +25,18 @@ STRATEGIES = {
         "alert": "smc",
         "practice": False,
     },
+    "irl_erl": {
+        "name": "IRL/ERL",
+        "long": "IRL → ERL · H1 order block",
+        "rules_word": "the IRL/ERL rules",
+        "short": "H4 draw on liquidity (IRL → ERL) agrees with the D1 trend, H1 MSS, Ore's 2/3-candle order block, 3R",
+        "evidence": ("Spec v23: +0.46R a trade on GBP/USD + gold (24 trades in 5 years) and +0.10R on EUR/USD + "
+                     "silver (32 trades); market entries with the same bias +0.20R over 177 trades. Promising but "
+                     "few trades and not proven (walk-forward failed). Live by Ore's decision."),
+        "report": "backtest/reports/irl_erl_v23.md",
+        "alert": "irl_erl",
+        "practice": False,
+    },
     "toni": {
         "name": "Toni Iyke",
         "long": "Toni Iyke · structure → inducement → POI",
