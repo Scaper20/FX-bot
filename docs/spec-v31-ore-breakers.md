@@ -15,3 +15,15 @@ Markets: A = GBP/USD + gold, B = EUR/USD + silver, Nov 2021 – Nov 2026, 1-minu
 A variant replaces the live rule only if in **both** A and B it has at least 20 trades, averages above 0R, and
 averages at least **0.10R above** live **and** makes at least as much total R as live (so it cannot win by trading
 much less). Results are appended below; nothing above is edited after the run.
+
+## Results (run 28 Nov 2026, `python -m backtest.ore_breakers_v31`; filled trades, 3R, after spreads)
+| Variant | A: GBP/USD + gold | B: EUR/USD + silver | Verdict |
+|---|---|---|---|
+| Live | +0.322 × 34 = +10.9R | +0.497 × 30 = +14.9R | |
+| 1: H4 breakers back | +0.249 × 36 = +8.9R (3 trades from H4 breakers) | +0.449 × 31 = +13.9R (3) | **FAIL** |
+| 2: breaker-only entry | +0.880 × 12 = +10.6R | +0.616 × 11 = +6.8R | **FAIL** (too few trades, less total R) |
+| 3: both | +0.736 × 13 = +9.6R | +0.616 × 11 = +6.8R | **FAIL** |
+
+H4 breakers add only 2–3 trades per set and they lose, so Ore's 27 Nov rule (ignore H4 breakers) stands. The M15
+breaker stays the first-choice entry (as live): per trade it is the best zone, but dropping the order-block fallback
+cuts trades by two thirds and the total falls, which also matters for the prop plan (fewer trades = slower challenge).
