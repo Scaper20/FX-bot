@@ -156,7 +156,7 @@ def run_scan(store, feed, now: pd.Timestamp | None = None, trigger: str = "manua
         raise ScanError(row["message"])
     markets, errors = {}, []
     calls_before = getattr(feed, "calls", 0)
-    had_hist, backfills = {}, 1                       # at most one extra feed call per scan (rate limit)
+    had_hist, backfills, hist_notes = {}, 1, []                       # at most one extra feed call per scan (rate limit)
     for pair in PAIRS:
         try:
             hist = d1_history(store, pair)
@@ -164,7 +164,9 @@ def run_scan(store, feed, now: pd.Timestamp | None = None, trigger: str = "manua
             if hist is not None and len(hist) < D1_HIST_MIN and backfills and hasattr(feed, "history_h1"):
                 backfills -= 1
                 try:
+                    n0 = len(hist)
                     hist = backfill_d1(feed, pair, hist)
+                    hist_notes.append(f"{pair} D1 history {n0} -> {len(hist)} days")
                 except Exception as e:                # history is a nice-to-have: never fail the scan
                     errors.append(f"{pair}: D1 history backfill: {e}")
             markets[pair] = Market.from_frames({**feed.frames(pair, now), "D1_hist": hist}, now)
@@ -241,7 +243,7 @@ def run_scan(store, feed, now: pd.Timestamp | None = None, trigger: str = "manua
         store.update_setup(r["id"], status=st, final=all(is_final(s) for s in st.values()))
         tracked += 1
 
-    notes = []
+    notes = list(hist_notes)
     try:
         for note in (alerts.send_scan_alert(store, settings, new_alert_cards, events, base_url),
                      alerts.maybe_send_digest(store, settings, now, base_url)):
