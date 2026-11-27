@@ -1,13 +1,14 @@
 {% extends "base.html" %}
-{% from "_macros.html" import dir_pill, review_form with context %}
+{% from "_macros.html" import dir_pill, review_form, practice_picker with context %}
 {% block title %}Practice · Setup Scanner{% endblock %}
 {% block content %}
 <div class="row spread">
   <h1>Practice</h1>
-  <span class="muted small">{{ prog.done }} of {{ prog.total }} reviewed</span>
+  <span class="muted small">{{ strategies[strat].name }}: {{ prog.done }} of {{ prog.total }} reviewed</span>
 </div>
+{{ practice_picker(menu, strat) }}
 <div class="bar" aria-hidden="true"><i style="width:{{ (100 * prog.done / prog.total) if prog.total else 0 }}%"></i></div>
-<p class="muted">A real past setup (2021–2024), shown only up to the moment of the trigger, exactly as the scanner would have shown it. Decide as you would live; the outcome is revealed after you save. History numbers are hidden so the call is yours.</p>
+<p class="muted">{{ strategies[strat].name }}: a real past setup ({{ '2021–2024' if strat == 'crt' else '2022–2026' }}), shown only up to the moment it formed, exactly as the scanner would have shown it. Decide as you would live; the outcome is revealed after you save. History numbers are hidden so the call is yours.</p>
 {% set rules_owner = "your" %}{% include "_practice_card.html" %}
 <section class="card">
   <h2>Your call</h2>

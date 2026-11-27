@@ -135,11 +135,13 @@ def _setups(key: str, o, h, l, c, mkt: Market | None = None, t_open=None):
     return lingard_setups(o, h, l, c, ev, _atr(h, l, c)), ev
 
 
-def scan_smc_pair(mkt: Market, pair: str, spread: float) -> list[dict]:
+def scan_smc_pair(mkt: Market, pair: str, spread: float, only: tuple | None = None) -> list[dict]:
     from .live import ENGINE_VERSION, _candles, all_tf_candles   # live imports this module
 
     out = []
     for key, m in MODELS.items():
+        if only and key not in only:
+            continue
         F = mkt.frames[m["tf"]]
         if len(F) < 60:
             continue
@@ -188,8 +190,10 @@ def scan_smc_pair(mkt: Market, pair: str, spread: float) -> list[dict]:
                 "session": session, "killzone": in_killzone(dec) or "", "friday_late": bool(friday_late(dec)),
                 "recommended": True, "rules": {"session_ok": True, "direction_ok": True, "backed": False},
                 "stats": stats,
-                "order": {"t_dec": t_dec, "t_end": {"1": t_end, "2": t_end}, "entry": e, "stop": stop,
-                          "market": False, "targets": {"T1": e + d * 1000 * risk, "T2": tgt},
+                # the tracker works on buys in mirrored (negated) prices, like the CRT orders (fixed 27 Nov 2026:
+                # long SMC orders were stored unmirrored and could never fill)
+                "order": {"t_dec": t_dec, "t_end": {"1": t_end, "2": t_end}, "entry": -d * e, "stop": -d * stop,
+                          "market": False, "targets": {"T1": -d * (e + d * 1000 * risk), "T2": -d * tgt},
                           "hold_tf": "D1", "hold_n": m["hold"]},
             }
             zf, zl, zlo, zhi = s["zone"]

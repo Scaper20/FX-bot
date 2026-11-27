@@ -1,8 +1,9 @@
 {% from "_macros.html" import dir_pill with context %}
 <section class="card">
   <div class="setup-head">
-    <h2>{{ card.pair }} {{ dir_pill(card.direction) }} <span class="pill">{{ card.range_tf }} CRT</span>
-      {% if card.recommended %}<span class="pill rec">matches {{ rules_owner }} rules</span>{% else %}<span class="pill warn">a rule is not met</span>{% endif %}</h2>
+    {% set sid = strategy_of(card) %}
+    <h2>{{ card.pair }} {{ dir_pill(card.direction) }} <span class="pill">{{ card.range_tf ~ ' CRT' if sid == 'crt' else strategies[sid].long }}</span>
+      {% if card.recommended %}<span class="pill rec">matches {{ rules_owner ~ ' rules' if sid == 'crt' else strategies[sid].rules_word }}</span>{% else %}<span class="pill warn">a rule is not met</span>{% endif %}</h2>
     <span class="muted small">{{ loc(card.decision_time, '%a %d %b %Y %H:%M') }}</span>
   </div>
   {% if chart_src %}<div class="ichart" data-src="{{ chart_src }}"></div>{% endif %}

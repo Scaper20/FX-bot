@@ -4,8 +4,9 @@
 {% block content %}
 <div class="row spread"><h1>What happened</h1><span class="muted small">{{ prog.done }} of {{ prog.total }} reviewed</span></div>
 <section class="card">
-  <h2>{{ card.pair }} {{ dir_pill(card.direction) }} <span class="pill">{{ card.range_tf }} CRT</span> <span class="muted small">{{ loc(card.decision_time, '%a %d %b %Y %H:%M') }}</span></h2>
+  {% set sid = strategy_of(card) %}
+  <h2>{{ card.pair }} {{ dir_pill(card.direction) }} <span class="pill">{{ card.range_tf ~ ' CRT' if sid == 'crt' else strategies[sid].long }}</span> <span class="muted small">{{ loc(card.decision_time, '%a %d %b %Y %H:%M') }}</span></h2>
   {% include "_practice_reveal.html" %}
-  <p><a class="btn" href="{{ url_for('practice') }}">Next practice setup</a> <a class="btn ghost" href="{{ url_for('performance') }}">See my practice performance</a></p>
+  <p><a class="btn" href="{{ url_for('practice', strategy=strat) }}">Next {{ strategies[strat].name }} setup</a> <a class="btn ghost" href="{{ url_for('performance') }}">See my practice performance</a></p>
 </section>
 {% endblock %}

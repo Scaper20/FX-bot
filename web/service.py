@@ -14,7 +14,7 @@ from engine.feeds.twelvedata import CALLS_PER_SCAN, FeedError
 from engine.live import (ENGINE_VERSION, ENTRY_LABEL, MGMT_LABEL, STOP_LABEL, all_tf_candles, scan,
                          track_card_options)
 from engine.setups import Market
-from engine.strategies import strategy_of
+from engine.strategies import STRATEGIES, strategy_of
 
 from . import alerts
 
@@ -345,25 +345,41 @@ def practice_items() -> list[dict]:
         return json.load(f)
 
 
-def active_practice_items() -> list[dict]:
-    """Setups still served. Retired ones (e.g. C2 closed in C1's wick, not its body: Ore's rule of
-    23 Nov 2026) stay in the file so answers already given still count in everyone's stats."""
-    return [p for p in practice_items() if not p.get("retired")]
+def practice_strategy(item: dict) -> str:
+    return item.get("strategy") or item["card"].get("strategy") or "crt"
+
+
+def active_practice_items(strategy: str | None = None) -> list[dict]:
+    """Setups still served (optionally one strategy). Retired ones (e.g. C2 closed in C1's wick, not its body: Ore's
+    rule of 23 Nov 2026) stay in the file so answers already given still count in everyone's stats."""
+    return [p for p in practice_items() if not p.get("retired")
+            and (strategy is None or practice_strategy(p) == strategy)]
 
 
 def practice_item(pid: str) -> dict | None:
     return next((p for p in practice_items() if p["id"] == pid), None)
 
 
-def next_practice(store) -> dict | None:
+def next_practice(store, strategy: str | None = None) -> dict | None:
     done = {r["setup_id"] for r in store.list_reviews()}
-    return next((p for p in active_practice_items() if p["id"] not in done), None)
+    return next((p for p in active_practice_items(strategy) if p["id"] not in done), None)
 
 
-def practice_progress(store) -> dict:
+def practice_progress(store, strategy: str | None = None) -> dict:
     done = {r["setup_id"] for r in store.list_reviews()}
-    items = active_practice_items()
+    items = active_practice_items(strategy)
     return {"done": sum(1 for p in items if p["id"] in done), "total": len(items)}
+
+
+def practice_menu(store) -> list[dict]:
+    """One entry per strategy that has practice setups: {id, done, total} (Practice tab picker)."""
+    done = {r["setup_id"] for r in store.list_reviews()}
+    out = []
+    for sid in STRATEGIES:
+        items = active_practice_items(sid)
+        if items:
+            out.append({"id": sid, "done": sum(1 for p in items if p["id"] in done), "total": len(items)})
+    return out
 
 
 def save_practice_review(store, item: dict, review: dict) -> int:

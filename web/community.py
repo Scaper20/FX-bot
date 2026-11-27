@@ -54,7 +54,7 @@ def claim(store, name: str, token: str | None, confirmed: bool) -> tuple[str, st
 
 def order_for(key: str) -> list[dict]:
     """Every trader gets the same setups in their own random order."""
-    items = list(service.active_practice_items())
+    items = list(service.active_practice_items("crt"))     # public practice: CRT setups only
     seed = int(hashlib.sha256(key.encode()).hexdigest()[:12], 16)
     random.Random(seed).shuffle(items)
     return items
@@ -70,7 +70,7 @@ def next_item(store, key: str) -> dict | None:
 
 
 def progress(store, key: str) -> dict:
-    active = {p["id"] for p in service.active_practice_items()}
+    active = {p["id"] for p in service.active_practice_items("crt")}
     return {"done": len(done_ids(store, key) & active), "total": len(active)}
 
 

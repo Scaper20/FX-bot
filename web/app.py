@@ -17,6 +17,7 @@ from flask import (Flask, Response, abort, flash, g, jsonify, redirect, render_t
 from jinja2 import Undefined
 
 from engine import config as K
+from engine.calendar import market_open
 from engine.feeds.twelvedata import CALLS_PER_SCAN, FeedError, TwelveDataFeed, fetch
 from engine.live import ENGINE_VERSION, TRIGGER_LABEL, load_stats
 from engine.sessions import LONDON, NEW_YORK
@@ -284,14 +285,19 @@ def create_app(store=None, feed=None, now_fn=None) -> Flask:
     @app.route("/practice")
     @login_required
     def practice():
-        item = service.next_practice(store())
-        prog = service.practice_progress(store())
+        menu = service.practice_menu(store())
+        ids = [m["id"] for m in menu]
+        strat = request.args.get("strategy") or session.get("practice_strategy") or "crt"
+        strat = strat if strat in ids else (ids[0] if ids else "crt")
+        session["practice_strategy"] = strat                     # remembered until changed
+        item = service.next_practice(store(), strat)
+        prog = service.practice_progress(store(), strat)
         if not item:
-            return render_template("practice_done.html", prog=prog)
+            return render_template("practice_done.html", prog=prog, menu=menu, strat=strat)
         card = item["card"]
         op = service.option_by_id(card, card.get("best"))
         ch = charts.card_charts(card, op)
-        return render_template("practice.html", item=item, card=card, op=op, charts=ch, prog=prog,
+        return render_template("practice.html", item=item, card=card, op=op, charts=ch, prog=prog, menu=menu, strat=strat,
                                text=charts.text_equivalent(card, op),
                                chart_src=url_for("chart_practice", pid=item["id"]))
 
@@ -318,8 +324,9 @@ def create_app(store=None, feed=None, now_fn=None) -> Flask:
         chosen = rv[-1].get("option_id") if rv else None
         op = service.option_by_id(card, chosen) or service.option_by_id(card, card.get("best"))
         ch = charts.card_charts(card, op, after=item.get("after"), decision=op["decision_time"] if op else None)
-        return render_template("practice_result.html", item=item, card=card, op=op, charts=ch, reviews=rv,
-                               status=item["outcome"], prog=service.practice_progress(store()),
+        strat = service.practice_strategy(item)
+        return render_template("practice_result.html", item=item, card=card, op=op, charts=ch, reviews=rv, strat=strat,
+                               status=item["outcome"], prog=service.practice_progress(store(), strat),
                                chart_src=url_for("chart_practice", pid=pid, option=op["id"] if op else None))
 
     # ------------------------------------------------------------ zone trainer
@@ -721,7 +728,7 @@ def create_app(store=None, feed=None, now_fn=None) -> Flask:
             return jsonify(ok=False, error="unauthorized"), 401
         t = now()
         if not _in_scan_hours(t) and request.args.get("force") != "1":
-            return jsonify(ok=True, skipped="outside London/New York hours or weekend")
+            return jsonify(ok=True, skipped="forex market closed (weekend)")
         try:
             row = service.run_scan(store(), app.extensions["feed_factory"](), t, trigger="schedule",
                                    base_url=request.url_root.rstrip("/"),
@@ -822,9 +829,9 @@ def _default_feed():
 
 
 def _in_scan_hours(t: pd.Timestamp) -> bool:
-    """Scheduled scans: weekdays from 06:00 London to 18:00 New York (covers both sessions)."""
-    ld, ny = t.tz_convert(LONDON), t.tz_convert(NEW_YORK)
-    return ld.weekday() < 5 and ld.hour >= 6 and ny.hour < 18 and ld.date() == ny.date()
+    """Scheduled scans: whenever the forex market is open, 24 hours (Sunday 17:00 to Friday 17:00 New York).
+    Was London/NY hours only until 27 Nov 2026 (Ore asked for 24-hour scanning)."""
+    return market_open(t)
 
 
 def session_clock(t: pd.Timestamp, tz: str) -> dict:

@@ -1,4 +1,6 @@
 {% extends "base.html" %}
+{% from "_macros.html" import practice_picker with context %}
 {% block content %}
-<div class="card empty"><h1>Practice complete</h1><p>You have reviewed all {{ prog.total }} practice setups. See how your calls compare with chance on the <a href="{{ url_for('performance') }}">Performance</a> page.</p></div>
+{{ practice_picker(menu, strat) }}
+<div class="card empty"><h1>{{ strategies[strat].name }} practice complete</h1><p>You have reviewed all {{ prog.total }} {{ strategies[strat].name }} practice setups. Pick another strategy above. See how your calls compare with chance on the <a href="{{ url_for('performance') }}">Performance</a> page.</p></div>
 {% endblock %}

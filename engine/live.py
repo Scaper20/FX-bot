@@ -361,6 +361,11 @@ def scan(markets: dict[str, Market], spreads: dict[str, float]) -> dict:
     return {"ready": ready, "armed": armed, "watch": watch, "smc_watch": smc_watch}
 
 
+# Smart-money options exit all at their one target (order["targets"]["T2"]): the tracker reports that as "M1_T2".
+# (Fixed 27 Nov 2026: looked up as "T3R"/"T5R"/"TLIQ", so filled SMC trades never showed target/stop/R.)
+RESULT_KEY = {"T3R": "M1_T2", "T5R": "M1_T2", "TLIQ": "M1_T2"}
+
+
 def track_card_options(mkt: Market, card: dict, spread: float) -> dict:
     """Live status of every option on a logged card: {option_id: track_order result}."""
     mirrored = card["direction"] == "long"
@@ -369,7 +374,7 @@ def track_card_options(mkt: Market, card: dict, spread: float) -> dict:
         o = dict(op["order"])
         o["t_end"] = {1: o["t_end"]["1"], 2: o["t_end"]["2"]}
         st = track_order(mkt, o, card["range_tf"], mirrored, spread)
-        mg = st.get("results", {}).get(op["mgmt"])
+        mg = st.get("results", {}).get(RESULT_KEY.get(op["mgmt"], op["mgmt"]))
         out[op["id"]] = {"status": st["status"], "fill_time": ts(st.get("fill_time")),
                          "state": (mg or {}).get("state"), "R": (mg or {}).get("R"),
                          "exit_time": ts((mg or {}).get("exit_time")), "tf": st.get("tf")}

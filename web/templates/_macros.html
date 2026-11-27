@@ -89,3 +89,10 @@
   <p><button type="submit">{{ submit }}</button></p>
 </form>
 {% endmacro %}
+
+
+{% macro practice_picker(menu, strat) %}
+<nav class="row" aria-label="Practice strategy" style="gap:6px;flex-wrap:wrap;margin:6px 0 12px">
+  {% for m in menu %}<a class="btn small {{ '' if m.id == strat else 'ghost' }}" href="{{ url_for('practice', strategy=m.id) }}"{% if m.id == strat %} aria-current="true"{% endif %}>{{ strategies[m.id].name }} <span class="small">{{ m.done }}/{{ m.total }}</span></a>{% endfor %}
+</nav>
+{% endmacro %}

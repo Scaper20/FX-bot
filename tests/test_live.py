@@ -161,6 +161,8 @@ def test_smc_live_cards_follow_spec_v22(feed):
             assert op["session"] != ""
         o = op["order"]
         assert o["hold_tf"] == "D1" and o["hold_n"] == MODELS[c["strategy"]]["hold"] and not o["market"]
+        assert o["entry"] == pytest.approx(-sgn * op["entry"]) and o["stop"] == pytest.approx(-sgn * op["stop"])
+        assert o["targets"]["T2"] == pytest.approx(-sgn * op["target"])     # buys in mirrored prices, like CRT
         ie = c["smc"]["irl_erl"]
         assert set(ie) == {"H4", "D1"} and all(v["bias"] in (-1, 0, 1) and isinstance(v["agrees"], bool) for v in ie.values())
 
@@ -247,3 +249,32 @@ def test_watch_lines_carry_chat_steps_and_chart_drawings(feed):
             if w["level"] is not None and w["step"] > 1 and w["strategy"] != "toni":
                 assert any(abs(lv["price"] - w["level"]) < 1e-9 for lv in w["draw"]["levels"]) or \
                     w["strategy"] == "ore_poi"
+
+
+def test_smc_long_orders_fill_when_price_trades_through(feed):
+    """Regression (27 Nov 2026): long SMC orders were stored in real prices while the tracker reads buys mirrored,
+    so they never filled. A long card whose entry is later traded through (ask) must show as filled."""
+    from engine.smc_live import scan_smc_pair
+    checked = 0
+    for t in pd.date_range("2023-03-01", "2023-05-31", freq="6h", tz="UTC"):
+        if t.weekday() >= 5:
+            continue
+        for pair, mkt in markets(feed, t).items():
+            for c in scan_smc_pair(mkt, pair, SPREADS[pair]):
+                if c["direction"] != "long":
+                    continue
+                op = c["options"][0]
+                fut = Market(feed.m1[pair][feed.m1[pair].index < t + pd.Timedelta("20D")], data_end=t + pd.Timedelta("20D"))
+                st = track_card_options(fut, c, SPREADS[pair])[op["id"]]
+                m1 = feed.m1[pair]
+                w = m1[(m1.index >= pd.Timestamp(op["order"]["t_dec"], tz="UTC"))
+                       & (m1.index < pd.Timestamp(op["order"]["t_end"]["2"], tz="UTC"))]
+                reached = bool(len(w)) and float(w["low"].min()) + SPREADS[pair] < op["entry"] - SPREADS[pair]
+                if reached:
+                    assert st["status"] == "filled", (c["id"], st)
+                    assert st["state"] in ("target", "stop", "time", "open") and st["R"] is not None, st
+                    if st["state"] == "target":
+                        mult = {"T3R": 3, "T5R": 5}.get(op["mgmt"])
+                        assert mult is None or st["R"] == pytest.approx(mult * abs(op["target"] - op["entry"]) / abs(op["entry"] - op["stop"]), abs=0.6)
+                    checked += 1
+    assert checked > 0, "no long SMC order traded through in the replay"

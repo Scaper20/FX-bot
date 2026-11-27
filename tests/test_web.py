@@ -95,6 +95,9 @@ def test_cron_endpoint_requires_token(env):
     clock["now"] = pd.Timestamp("2023-06-10 12:00", tz="UTC")       # Saturday
     r = c.post("/api/cron/scan", headers={"Authorization": "Bearer cron-token-123"})
     assert "skipped" in r.get_json()
+    clock["now"] = pd.Timestamp("2023-06-07 02:00", tz="UTC")       # Wednesday, Asian session: scans now
+    r = c.post("/api/cron/scan", headers={"Authorization": "Bearer cron-token-123"})
+    assert "skipped" not in r.get_json()
 
 
 def test_credit_budget_blocks_scans(env):
@@ -370,3 +373,33 @@ def test_watch_chart_endpoint_and_chat(env):
     j = r.get_json()
     assert j["default_tf"] == w["tf"] and j["tfs"].get(w["tf"]) and isinstance(j["levels"], list)
     assert c.get("/api/chart/watch/GBPUSD/nope").status_code == 404
+
+
+def test_practice_strategy_picker(env):
+    """Practice tab: each strategy with practice setups has a button; the choice is remembered; a review of a
+    smart-money setup reveals its outcome; public practice still serves CRT setups only."""
+    from engine.strategies import STRATEGIES
+    from web import community
+    app, store, clock = env
+    menu = service.practice_menu(store)
+    if len(menu) < 2:
+        pytest.skip("smart-money practice set not built")
+    c = app.test_client()
+    login(c)
+    for m in menu:
+        page = c.get(f"/practice?strategy={m['id']}").get_data(as_text=True)
+        assert all(STRATEGIES[x["id"]]["name"].replace("'", "&#39;") in page for x in menu)
+        pid = re.search(r'action="/practice/(P-[^"]+)"', page).group(1)
+        assert service.practice_strategy(service.practice_item(pid)) == m["id"]
+    sid = next(m["id"] for m in menu if m["id"] != "crt")
+    c.get(f"/practice?strategy={sid}")
+    page = c.get("/practice").get_data(as_text=True)                       # remembered
+    pid = re.search(r'action="/practice/(P-[^"]+)"', page).group(1)
+    item = service.practice_item(pid)
+    assert service.practice_strategy(item) == sid and "CRT</span>" not in page
+    tok = csrf(c, "/practice")
+    c.post(f"/practice/{pid}", data={"csrf": tok, "decision": "take", "option_id": item["card"]["best"]})
+    res = c.get(f"/practice/{pid}/result").get_data(as_text=True)
+    assert "What happened" in res and f"strategy={sid}" in res
+    assert service.practice_progress(store, sid)["done"] == 1 and service.practice_progress(store, "crt")["done"] == 0
+    assert all(service.practice_strategy(p) == "crt" for p in community.order_for("someone"))
