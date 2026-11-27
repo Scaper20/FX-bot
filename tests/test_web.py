@@ -299,7 +299,7 @@ def test_order_block_strategy_logged_and_shown_separately(env):
     assert sid, "expected an order-block setup to be logged"
     page = c.get(f"/setup/{sid}").get_data(as_text=True)
     assert "H1 order block" in page and "matches the order-block rules" in page and "Range high" not in page
-    assert "watch-only" not in page and "failed the fresh-market test" in page        # honest evidence stays shown
+    assert "watch-only" not in page and "is not reliable" in page        # honest evidence stays shown
     data = c.get(f"/api/chart/setup/{sid}").get_json()
     titles = {lv["title"] for lv in data["levels"]}
     assert {"Entry (order block open)", "Stop", "Target 3R"} <= titles

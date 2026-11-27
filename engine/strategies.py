@@ -19,9 +19,9 @@ STRATEGIES = {
         "long": "H1 order block · D1+H4 bias",
         "rules_word": "the order-block rules",
         "short": "D1 and H4 structure agree, H1 market structure shift, limit at the order block's open, 3R",
-        "evidence": ("Backtest 2021–26: +0.27R a trade on GBP/USD + gold (234 trades, positive all 5 years, "
-                     "walk-forward passed), but −0.12R on EUR/USD + silver, so it failed the fresh-market test "
-                     "(spec v16)."),
+        "evidence": ("Drawing review 27 Nov 2026: this version reads market structure from tiny swings, so its "
+                     "'MSS' and order block are often minor candles. Its old backtest (+0.27R on GBP/USD + gold, "
+                     "−0.12R on EUR/USD + silver) is not reliable; a correct rebuild (spec v21) found no edge."),
         "report": "backtest/reports/smc_bias_v16.md",
         "alert": "smc",
         "practice": False,

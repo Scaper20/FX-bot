@@ -28,11 +28,23 @@ Walk-forward (choose on past years, trade next year blind, 2023–26): -0.125R o
 | H1 | first candle's near edge | D1+H4 | 28 | -0.571 | **-0.591** | -2.6 | 11% | -1.00 | -0.52 | +0.26 | -1.00 | -1.00 | 1 | no | 29 · -0.366 · 1 · 12% |  |
 | H1 | first candle's near edge | none | 115 | +0.175 | **+0.146** | +0.9 | 29% | +0.25 | +0.02 | +0.18 | -0.16 | +0.89 | 4 | YES | 141 · -0.236 · 1 · 18% | fresh FAIL |
 | M15 | first candle's body | D1+H4 | 102 | -0.088 | **-0.179** | -1.2 | 23% | -0.24 | -0.28 | +0.17 | +0.04 | -0.67 | 2 | no | 81 · -0.172 · 3 · 22% |  |
-| M15 | first candle's body | none | 321 | +0.002 | **-0.054** | -0.6 | 25% | +0.17 | -0.04 | -0.25 | +0.08 | -0.20 | 2 | no | 322 · -0.246 · 1 · 23% |  |
+| M15 | first candle's body | none | 320 | +0.006 | **-0.051** | -0.6 | 25% | +0.19 | -0.04 | -0.25 | +0.08 | -0.20 | 2 | no | 322 · -0.246 · 1 · 23% |  |
 | M15 | first candle's near edge | D1+H4 | 123 | -0.080 | **-0.152** | -1.1 | 23% | -0.09 | -0.52 | +0.13 | +0.12 | -0.28 | 2 | no | 105 · -0.146 · 2 · 23% |  |
-| M15 | first candle's near edge | none | 383 | -0.053 | **-0.107** | -1.3 | 23% | +0.04 | -0.17 | -0.10 | +0.01 | -0.24 | 2 | no | 399 · -0.179 · 1 · 23% |  |
+| M15 | first candle's near edge | none | 382 | -0.051 | **-0.104** | -1.3 | 23% | +0.06 | -0.17 | -0.10 | +0.01 | -0.24 | 2 | no | 398 · -0.177 · 2 · 23% |  |
 
 Walk-forward (choose on past years, trade next year blind, 2023–26): +0.002R over 82 trades, positive in 3 of 4 years → **PASS**.
 
-Order blocks found in test B: 2-candle 771, 3-candle 267 (counted on the edge-entry rows, all markets, bias on and off).
+Order blocks found in test B: 2-candle 771, 3-candle 265 (counted on the edge-entry rows, all markets, bias on and off).
 
+
+## Checks
+- Independent audit (`backtest/chart_ob_v21.py`): 13,104 trades. MSS candle is the first close beyond the broken level; nothing went beyond the top/bottom of the move before it; test B formations meet the 2-candle / 3-candle rule, contain the top/bottom and are complete by the MSS candle; levels on the right sides. **0 problems** (the first run had 3 formations finishing after the MSS candle, a look-ahead; fixed and re-run).
+- Example charts (random, not chosen): `docs/smc_review/v21_*.png`. Unit tests: `tests/test_smc_structure.py`.
+
+## Reading
+- **The old live strategy's +0.27R does not survive a correct build.** On real market structure the same idea (D1+H4 trend, H1 MSS, order block at the top/bottom) gives +0.06R with the draft order block and −0.37 to −0.59R with Ore's order block when the D1+H4 filter is on, on only 24–89 trades in 5 years. The old result came from picks on tiny internal swings.
+- **With D1+H4 bias, setups are rare**: a real H1 MSS in the direction of both higher-timeframe trends happens ~45 times a year across both pairs, and Ore's 2/3-candle block is present at the top/bottom on about 1 in 8 of them (24–28 trades on H1 in 5 years).
+- **Best rows are without the bias filter**: test A H1 order block +0.10R (358 trades, 4/5 years, but target hit 20% vs 25% chance); test B H1 first-candle edge +0.15R (115 trades, 4/5 years, hit 29%) — the only consistent row — but on EUR/USD + silver both lose (−0.07R and −0.24R).
+- Test B's walk-forward "pass" is flat (+0.002R over 82 trades) and means nothing.
+- Hit rates for market entries are low (10–18%) because many trades end at the 3-day time limit; the stop sits beyond the whole move, so 3R is far.
+- **Verdict: no edge in either version.** Ore's order block is drawn correctly now (see charts) but does not make the strategy profitable on these markets.
