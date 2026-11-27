@@ -34,3 +34,25 @@ days. Ore's model also needs the entry beyond the liquidity level and ahead of p
 - **Pass (switch a strategy to the PD priority order):** in both A and B, PD priority averages above 0R with at least
   20 trades and at least 0.10R above the live version.
 Results are appended below; nothing above is edited after the runs.
+
+## Results (run 28 Nov 2026, `python -m backtest.pd_array_v30 PAIR` then no args; filled trades, 3R, after spreads)
+The live versions reproduce their earlier tests exactly (Ore's model 34 / +0.32R and 30 / +0.50R; IRL/ERL 24 / +0.46R
+and 32 / +0.10R), so the setups are the same ones.
+
+| Strategy · variant | A: GBP/USD + gold | B: EUR/USD + silver |
+|---|---|---|
+| Ore's model · live (breaker, else OB) | +0.322 (34) | +0.497 (30) |
+| Ore's model · **PD priority** (RB → OB → FVG → BB) | +0.125 (27) | +0.536 (25) |
+| Ore's model · PD + premium/discount | +0.107 (13) | +0.813 (11) |
+| Ore's model · RB / OB / FVG / BB alone | +0.33 (9) / +0.06 (25) / +0.38 (25) / **+0.88 (12)** | −0.22 (10) / +0.29 (21) / +0.21 (22) / **+0.62 (11)** |
+| IRL/ERL · live (OB) | +0.459 (24) | +0.095 (32) |
+| IRL/ERL · **PD priority** | +0.243 (22) | +0.070 (26) |
+| IRL/ERL · PD + premium/discount | +0.439 (19) | −0.056 (21) |
+| IRL/ERL · RB / FVG alone | +1.67 (3) / +0.11 (24) | −1.00 (5) / +0.46 (21) |
+
+**Verdict: FAIL for both; no live change.** Taking the highest-priority zone lowers Ore's model on GBP/USD + gold
+(+0.32 → +0.13R) and IRL/ERL on both sets. Inside Ore's model the breaker, the lowest entry on Ore's list, is the best
+zone in both sets, and the order block the weakest: these lower zones sit deeper in the move, so the stop is tighter
+and only the deeper pullbacks fill. Rejection blocks are rare at the move's extreme (3-10 per set) and mixed.
+Samples are small (10-35 trades per cell); read as "no evidence that the priority order helps here", not as proof
+that it hurts.
