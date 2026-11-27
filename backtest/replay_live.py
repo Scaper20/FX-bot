@@ -33,6 +33,9 @@ from engine.setups import Market  # noqa: E402
 from engine.smc_live import scan_smc_pair  # noqa: E402
 from engine.strategies import strategy_of  # noqa: E402
 from web.service import actionable  # noqa: E402
+from backtest.patterns import MARKETS  # noqa: E402
+
+MKT = {**MARKETS, **K.PAIRS}                 # data file and spread per pair (EUR/USD and silver from the fresh set)
 
 OUT = ROOT / "backtest" / "out" / "replay_setups.csv"
 LIVE_N = {"H1": 2500, "M15": 1500, "M5": 2500}
@@ -40,7 +43,7 @@ _DATA: dict = {}
 
 
 def load(pair: str, start: pd.Timestamp, twelvedata: bool) -> dict:
-    m1 = clean(load_m1_csv(ROOT / K.PAIRS[pair]["file"]))[0]
+    m1 = clean(load_m1_csv(ROOT / MKT[pair]["file"]))[0]
     cut = m1.index[-1].floor("1h")
     frames = {tf: resample(m1[(m1.index >= start - pd.Timedelta("200D")) & (m1.index < cut)], tf, "utc0")
               [["open", "high", "low", "close"]] for tf in LIVE_N}
@@ -60,11 +63,11 @@ def _init(data):
 
 
 def _chunk(args):
-    pair, a, b = args
+    pair, a, b, only = args
     raw, d1 = _DATA[pair]["frames"], _DATA[pair]["d1"]
     idx = {tf: df.index.as_unit("ns").asi8 for tf, df in raw.items()}
     end = raw["M5"].index[-1] + pd.Timedelta("5min")
-    sp = K.PAIRS[pair]["spread"]
+    sp = MKT[pair]["spread"]
     seen = {}
     for t in pd.date_range(a, min(b, end), freq="15min", inclusive="left"):
         if not market_open(t):
@@ -74,7 +77,8 @@ def _chunk(args):
             k = int(np.searchsorted(idx[tf], t.value, side="left"))
             fr[tf] = df.iloc[max(0, k - LIVE_N[tf]):k]
         mkt = Market.from_frames({**fr, "D1_hist": d1}, t)
-        for c in [c for c in scan_pair(mkt, pair, sp) if c["state"] == "ready"] + scan_smc_pair(mkt, pair, sp):
+        crt = [] if only and "crt" not in only else [c for c in scan_pair(mkt, pair, sp) if c["state"] == "ready"]
+        for c in crt + scan_smc_pair(mkt, pair, sp, only=tuple(x for x in only if x != "crt") or None if only else None):
             if c["id"] in seen:
                 continue
             st = track_card_options(mkt, c, sp)
@@ -90,16 +94,21 @@ def main() -> int:
     ap.add_argument("--end", required=True)
     ap.add_argument("--jobs", type=int, default=4)
     ap.add_argument("--twelvedata", action="store_true", help="append the live feed's candles after the Dukascopy data")
+    ap.add_argument("--pairs", default="GBPUSD,XAUUSD", help="comma list; EURUSD and XAGUSD use the fresh-market data")
+    ap.add_argument("--only", default="", help="comma list of strategies to scan (default all)")
+    ap.add_argument("--out", default=str(OUT))
     a = ap.parse_args()
     start, end = pd.Timestamp(a.start, tz="UTC"), pd.Timestamp(a.end, tz="UTC")
-    data = {p: load(p, start, a.twelvedata) for p in K.PAIRS}
+    pairs = [x for x in a.pairs.split(",") if x]
+    only = tuple(x for x in a.only.split(",") if x)
+    data = {p: load(p, start, a.twelvedata) for p in pairs}
     months = list(pd.date_range(start.floor("D"), end, freq="MS")) or [start]
     edges = sorted({start, *[m for m in months if m > start], end})
-    jobs = [(p, x, y) for p in K.PAIRS for x, y in zip(edges[:-1], edges[1:])]
+    jobs = [(p, x, y, only) for p in pairs for x, y in zip(edges[:-1], edges[1:])]
     with Pool(a.jobs, initializer=_init, initargs=(data,)) as pool:
         found = pool.map(_chunk, jobs)
     rows = []
-    for pair in K.PAIRS:
+    for pair in pairs:
         seen = {}
         for p, vals in found:
             if p == pair:
@@ -108,7 +117,7 @@ def main() -> int:
                         seen[v["card"]["id"]] = v
         raw = data[pair]["frames"]
         final = Market.from_frames(raw, raw["M5"].index[-1] + pd.Timedelta("5min"))
-        sp = K.PAIRS[pair]["spread"]
+        sp = MKT[pair]["spread"]
         for v in seen.values():
             c = v["card"]
             out = track_card_options(final, c, sp)
@@ -121,8 +130,9 @@ def main() -> int:
                          "status": o["status"], "state": o["state"], "R": o["R"], "fill_time": o["fill_time"],
                          "exit_time": o["exit_time"], "id": c["id"]})
     d = pd.DataFrame(rows).sort_values("first_seen")
-    OUT.parent.mkdir(parents=True, exist_ok=True)
-    d.to_csv(OUT, index=False)
+    out_path = Path(a.out)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    d.to_csv(out_path, index=False)
     o = d[d["order_placed"]].copy()
     o["filled"] = o["status"] == "filled"
     t = pd.to_datetime(o["first_seen"], utc=True)
@@ -137,7 +147,7 @@ def main() -> int:
         g["lost"] = f[f["R"] < -0.05].groupby(by).size()
         g["net_R"] = f.groupby(by)["R"].sum().round(1)
         return g.fillna(0)
-    print(f"{len(d)} setups shown, {len(o)} orders placed, {len(f)} trades -> {OUT.relative_to(ROOT)}\n")
+    print(f"{len(d)} setups shown, {len(o)} orders placed, {len(f)} trades -> {out_path}\n")
     print(table(["year", "strategy"]).to_string(), "\n")
     print(table("month").to_string(), "\n")
     print(table("week").to_string())

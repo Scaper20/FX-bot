@@ -32,8 +32,8 @@ class Rules:
     day_tz: str = "Europe/London"  # Equity Edge: the daily limit resets at 22:00 London time
     day_start_h: int = 22
     equity_trailing: bool = True  # Equity Edge: the trailing floor follows the highest balance OR equity
-    leverage: dict = field(default_factory=lambda: {"GBPUSD": 30, "XAUUSD": 10})
-    contract: dict = field(default_factory=lambda: {"GBPUSD": 100_000, "XAUUSD": 100})
+    leverage: dict = field(default_factory=lambda: {"GBPUSD": 30, "EURUSD": 30, "XAUUSD": 10, "XAGUSD": 10})
+    contract: dict = field(default_factory=lambda: {"GBPUSD": 100_000, "EURUSD": 100_000, "XAUUSD": 100, "XAGUSD": 5000})
     no_hedge: bool = True         # hedging is prohibited: skip a trade opposite an open one on the same pair
     payout_days: int | None = None  # funded stage: pay out profit every N days (no target)
     split: float = 0.8
@@ -63,12 +63,12 @@ def load(paths, candles_dir: str | None = None) -> pd.DataFrame:
     d["exit"] = pd.to_datetime(d["exit_time"], utc=True)
     d = d.drop_duplicates(["strategy", "pair", "fill"]).sort_values("fill").reset_index(drop=True)
     d["mfe"] = 0.0
-    from engine import config as K
+    from backtest.patterns import MARKETS
     from engine.candles import clean, load_m1_csv
     for pair, g in d.groupby("pair"):
-        m1 = clean(load_m1_csv(ROOT / K.PAIRS[pair]["file"]))[0]
+        m1 = clean(load_m1_csv(ROOT / MARKETS[pair]["file"]))[0]
         src = [m1]
-        if candles_dir:
+        if candles_dir and (Path(candles_dir) / f"{pair}_M5.pkl").exists():
             m5 = pd.read_pickle(Path(candles_dir) / f"{pair}_M5.pkl")
             src.append(m5[m5.index > m1.index[-1]])
         px = pd.concat([x[["high", "low"]] for x in src]).sort_index()
