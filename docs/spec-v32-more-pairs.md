@@ -92,6 +92,13 @@ More pairs bring more trades, and challenges finish sooner: "still open" drops f
 the 5% trailing limit far more often: 30% of starts with two pairs, 35–61% with three or four. In the funded stage the
 breach rate rises from 50% to 76–89%.
 
-The extra pairs often trade at the same time as GBP/USD and gold, so their losses land on the same days. Because the
-trailing limit is only 5%, more trades at once makes a breach more likely, not a pass. The bootstrap pass rate rises a
-little with more pairs, but the week-by-week real history, which keeps those same-day clusters together, does not.
+Not same-day clustering: checked afterwards, only 2 of 32 EUR/USD trades and 1 of 24 silver trades were open at
+the same time as a GBP/USD or gold trade, and only 1 EUR/USD loss overlapped a GBP/gold loss.
+
+The extra trades simply earn less per trade:
+- GBP/USD + gold: +0.39R a trade.
+- EUR/USD: +0.13R.
+- Silver: +0.33R, and its IRL/ERL trades lose (-4R over 16).
+
+Most trades lose and the wins are 3R, so every added low-edge trade is another chance of the run of 3–4 losses that hits
+a 5% trailing limit at 1.5% risk, before the two or three wins the 8% target needs.
