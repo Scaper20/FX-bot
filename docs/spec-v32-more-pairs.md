@@ -102,3 +102,22 @@ The extra trades simply earn less per trade:
 
 Most trades lose and the wins are 3R, so every added low-edge trade is another chance of the run of 3–4 losses that hits
 a 5% trailing limit at 1.5% risk, before the two or three wins the 8% target needs.
+
+### USD/JPY and AUD/USD (run 28 Nov 2026, same rule)
+- **Data:** 5-minute Twelve Data mid prices from Nov 2021, a 1-pip spread assumed, and the same replay settings
+  (`--only ore_poi,irl_erl`, 1 Jun 2022 to 18 Nov 2026).
+- **Output:** `backtest/out/v32_more_pairs_USDJPY_AUDUSD.csv`.
+
+| pair | Ore's model | IRL/ERL | total |
+|---|---|---|---|
+| USD/JPY | 17 trades, -5.0R | 11 trades, -11.0R | 28 trades, -16.0R |
+| AUD/USD | 13 trades, -1.0R | 20 trades, -6.6R | 33 trades, -7.6R |
+
+| basket (1.5% risk) | pass | bootstrap pass | funded avg paid | funded breached |
+|---|---|---|---|---|
+| A: GBP/USD + gold | 31.9% | 19.1% | $170 | 50% |
+| A + USD/JPY | 17.2% | 16.0% | $109 | 75% |
+| A + AUD/USD | 20.6% | 16.2% | $134 | 81% |
+| A + both | 9.8% | 14.2% | $87 | 90% |
+
+**Verdict: neither is added.** Both fail rule 1 (net negative), and both lower the pass rate and the funded payout.
