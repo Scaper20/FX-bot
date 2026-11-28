@@ -103,7 +103,7 @@ def create_app(store=None, feed=None, now_fn=None) -> Flask:
         def price(pair, x):
             if missing(x):
                 return "—"
-            return f"{x:.5f}" if pair == "GBPUSD" else f"{x:,.2f}"
+            return K.fmt_price(pair, x)
 
         def pct(x, digits=0):
             return "—" if missing(x) else f"{x * 100:.{digits}f}%"
@@ -111,7 +111,9 @@ def create_app(store=None, feed=None, now_fn=None) -> Flask:
         def rfmt(x):
             return "—" if missing(x) else f"{x:+.2f}R"
 
-        return dict(loc=loc, price=price, pct=pct, rfmt=rfmt, csrf_token=csrf_token, settings=st,
+        return dict(loc=loc, price=price, pct=pct, pairs=list(K.LIVE_PAIRS), pair_name=K.pair_name,
+                    pip_of=lambda pr: K.LIVE_PAIRS[pr]["pip"],
+                    dist=K.fmt_distance, is_metal=K.is_metal, rfmt=rfmt, csrf_token=csrf_token, settings=st,
                     labels=service.LABELS, reasons=service.REASONS, strategies=STRATEGIES, strategy_of=strategy_of, trigger_label=TRIGGER_LABEL,
                     engine_version=ENGINE_VERSION, clock=session_clock(now(), tz), nav=request.endpoint,
                     lot_size=lambda pair, e, s: service.lot_size(st, pair, e, s), dev=app.config["DEV"],
@@ -394,7 +396,8 @@ def create_app(store=None, feed=None, now_fn=None) -> Flask:
                             "daily_pct": _num(f.get("daily_pct"), p["daily_pct"]),
                             "trailing_pct": _num(f.get("trailing_pct"), p["trailing_pct"]),
                             "risk_pct": _num(f.get("risk_pct"), p["risk_pct"]),
-                            "leverage": {"GBPUSD": _num(f.get("lev_GBPUSD"), 30), "XAUUSD": _num(f.get("lev_XAUUSD"), 10)},
+                            "leverage": {pr: _num(f.get(f"lev_{pr}"), p["leverage"].get(pr, 10 if K.is_metal(pr) else 30))
+                                         for pr in K.LIVE_PAIRS},
                             "strategies": [s for s in f.getlist("strategies") if s in STRATEGIES],
                             "news_min": int(_num(f.get("news_min"), 2))})
                 ok = (new["size"] > 0 and 0 < new["risk_pct"] <= 5 and 0 < new["daily_pct"] <= 20
@@ -517,12 +520,14 @@ def create_app(store=None, feed=None, now_fn=None) -> Flask:
             check_csrf()
             f = request.form
             new = {
-                "spreads": {"GBPUSD": _num(f.get("spread_GBPUSD_pips"), 1.0) * 0.0001,
-                            "XAUUSD": _num(f.get("spread_XAUUSD"), 0.35)},
+                "spreads": {**st["spreads"], **{
+                    pr: (_num(f.get(f"spread_{pr}"), st["spreads"][pr]) if K.is_metal(pr)
+                         else _num(f.get(f"spread_{pr}_pips"), st["spreads"][pr] / K.LIVE_PAIRS[pr]["pip"]) * K.LIVE_PAIRS[pr]["pip"])
+                    for pr in K.LIVE_PAIRS}},
                 "balance": _num(f.get("balance"), st["balance"]),
                 "risk_pct": _num(f.get("risk_pct"), st["risk_pct"]),
-                "contract": {"GBPUSD": _num(f.get("contract_GBPUSD"), 100000),
-                             "XAUUSD": _num(f.get("contract_XAUUSD"), 100)},
+                "contract": {**st["contract"], **{pr: _num(f.get(f"contract_{pr}"), st["contract"][pr])
+                                                  for pr in K.LIVE_PAIRS}},
                 "tz": f.get("tz") or st["tz"],
                 "daily_credit_limit": int(_num(f.get("daily_credit_limit"), 780)),
                 "owner_email": community.norm_email(f.get("owner_email")) if community.valid_email(f.get("owner_email") or "") else "",
@@ -541,7 +546,8 @@ def create_app(store=None, feed=None, now_fn=None) -> Flask:
                 "last_digest": st.get("last_digest", ""), "alert_count": st.get("alert_count", {}),
                 "prop": st.get("prop", {}),
             }
-            if not (0 < new["spreads"]["GBPUSD"] < 0.01 and 0 < new["spreads"]["XAUUSD"] < 20
+            if not (all(0 < new["spreads"][pr] < (20 if K.is_metal(pr) else 0.01 * (100 if pr.endswith("JPY") else 1))
+                        and new["contract"][pr] > 0 for pr in K.LIVE_PAIRS)
                     and 0 < new["risk_pct"] <= 10 and new["balance"] > 0):
                 flash("Some values look wrong; nothing saved.", "error")
             else:
@@ -556,13 +562,13 @@ def create_app(store=None, feed=None, now_fn=None) -> Flask:
     def feed_check():
         check_csrf()
         out = []
-        for pair in K.PAIRS:
+        for pair in K.LIVE_PAIRS:
             try:
                 df = fetch(pair, "H1", outputsize=3)
                 out.append(f"{pair}: OK, last H1 candle {df.index[-1]:%d %b %H:%M} UTC close {df['close'].iloc[-1]}")
             except FeedError as e:
                 out.append(f"{pair}: {e}")
-        store().add_credits(len(K.PAIRS))
+        store().add_credits(len(K.LIVE_PAIRS))
         session["feed_result"] = out
         return redirect(url_for("settings_page"))
 

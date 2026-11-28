@@ -9,6 +9,7 @@ from functools import lru_cache
 from pathlib import Path
 
 import pandas as pd
+from engine import config as K
 
 TFS = ("M5", "M15", "H1", "H4", "D1")
 CHART_DIR = Path(__file__).resolve().parent / "data" / "practice_charts"
@@ -106,7 +107,7 @@ def practice_chart(pid: str) -> dict | None:
 def payload(card: dict, op: dict | None, before: dict, after: dict | None, tz_offset: int,
             reveal_from: str | None = None) -> dict:
     tfs = {tf: before.get(tf, []) for tf in TFS if before.get(tf)}
-    out = {"pair": card["pair"], "precision": 5 if card["pair"] == "GBPUSD" else 2, "direction": card["direction"],
+    out = {"pair": card["pair"], "precision": K.decimals(card["pair"]), "direction": card["direction"],
            "default_tf": (op or {}).get("entry_tf") or card.get("chart", {}).get("entry_tf") or "H1",
            "range_tf": card["range_tf"], "tz_offset": tz_offset, "tfs": tfs,
            "after": {tf: (after or {}).get(tf, []) for tf in tfs} if after else {},
@@ -127,7 +128,7 @@ def watch_payload(w: dict, candles: dict) -> dict:
     lv = [{"price": x["price"], "title": x["title"], "color": x["color"], "dashed": bool(x.get("dashed")),
            "from": _sec(x["from"])} for x in dr.get("levels", [])]
     last = max((c[0] for c in tfs.get(w.get("tf") or "H1", [])), default=0)
-    return {"pair": w["pair"], "precision": 5 if w["pair"] in ("GBPUSD", "EURUSD") else 2,
+    return {"pair": w["pair"], "precision": K.decimals(w["pair"]),
             "direction": w.get("direction") or "short", "default_tf": w.get("tf") or "H1", "range_tf": w.get("tf"),
             "tz_offset": 0, "tfs": tfs, "after": {}, "levels": lv,
             "markers": [{"time": _sec(m["time"]), "text": m["text"], "color": "#0F1B2D"} for m in dr.get("marks", [])],

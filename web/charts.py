@@ -4,13 +4,14 @@ from __future__ import annotations
 from html import escape
 
 import pandas as pd
+from engine import config as K
 
 INK, MUTED, GRID = "#0F1B2D", "#5B6577", "#E3E7ED"
 UP, DOWN, AMBER, BLUE = "#0B7A5A", "#C8473B", "#D99A1E", "#2F5D9E"
 
 
 def _fmt(pair: str, x: float) -> str:
-    return f"{x:.5f}" if pair == "GBPUSD" else f"{x:.2f}"
+    return f"{x:.{K.decimals(pair)}f}"
 
 
 def candles_svg(candles: list, levels: list[dict] | None = None, markers: list[dict] | None = None,

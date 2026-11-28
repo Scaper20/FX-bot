@@ -12,7 +12,7 @@
 {% endif %}
 <section class="card hero">
   <h1>Find me a setup</h1>
-  <p class="muted">Scans GBP/USD and gold with {{ strategies | length }} strategies: {% for sid, s in strategies.items() %}<b>{{ s.name }}</b> ({{ s.long }}){{ ' and ' if loop.revindex == 2 else ', ' if not loop.last }}{% endfor %}. Each setup shows its levels, chart and the strategy's history. You make the call.</p>
+  <p class="muted">Scans {% for pr in pairs %}{{ pair_name(pr) }}{{ ", " if loop.revindex > 2 else (" and " if loop.revindex == 2 else "") }}{% endfor %} with {{ strategies | length }} strategies: {% for sid, s in strategies.items() %}<b>{{ s.name }}</b> ({{ s.long }}){{ ' and ' if loop.revindex == 2 else ', ' if not loop.last }}{% endfor %}. Each setup shows its levels, chart and the strategy's history. You make the call.</p>
   <form method="post" action="{{ url_for('scan_now') }}" class="row">
     <input type="hidden" name="csrf" value="{{ csrf_token() }}">
     <button class="btn big" type="submit">Find me a setup</button>
@@ -90,7 +90,7 @@
     <span class="pill {{ 'warn' if w.beyond_now else '' }}">Step {{ w.step }} of {{ w.steps }}: {{ w.title }}</span>
     {{ w.text }}
     {% if w.level is not none and w.distance is not none %} Price now <span class="mono">{{ price(w.pair, w.price) }}</span>,
-      {% if w.beyond_now %}<b>past the level right now</b>: it counts only if the candle closes there ({{ loc(w.closes_at, '%H:%M') }}).{% else %}{{ '%.1f pips' % (w.distance * 10000) if w.pair == 'GBPUSD' else '$%.2f' % w.distance }} away.{% endif %}
+      {% if w.beyond_now %}<b>past the level right now</b>: it counts only if the candle closes there ({{ loc(w.closes_at, '%H:%M') }}).{% else %}{{ dist(w.pair, w.distance) }} away.{% endif %}
     {% endif %}
     {% if w.irl_erl %}<br><span class="small muted">IRL/ERL: {{ w.irl_erl }}.</span>{% endif %}
     {% if w.story %}
@@ -100,7 +100,7 @@
         <ol class="chat" aria-label="{{ strategies[w.strategy].name }} on {{ w.pair }}, step by step">
           {% for m in w.story %}
           <li class="msg {{ m.state }}"><span class="who">{{ {'done': 'Done', 'now': 'Now', 'next': 'Next'}[m.state] }}</span>
-            {% if m.state == 'now' %}<b>{{ m.title }}</b><br>{{ m.text }}{% if w.level is not none and w.distance is not none %} Price now <span class="mono">{{ price(w.pair, w.price) }}</span>, {{ '%.1f pips' % (w.distance * 10000) if w.pair == 'GBPUSD' else '$%.2f' % w.distance }} from <span class="mono">{{ price(w.pair, w.level) }}</span>.{% endif %}{% else %}{{ m.text }}{% endif %}</li>
+            {% if m.state == 'now' %}<b>{{ m.title }}</b><br>{{ m.text }}{% if w.level is not none and w.distance is not none %} Price now <span class="mono">{{ price(w.pair, w.price) }}</span>, {{ dist(w.pair, w.distance) }} from <span class="mono">{{ price(w.pair, w.level) }}</span>.{% endif %}{% else %}{{ m.text }}{% endif %}</li>
           {% endfor %}
         </ol>
         <div class="ichart" data-lazy="1" data-src="{{ url_for('chart_watch', pair=w.pair, strategy=w.strategy) }}"></div>

@@ -19,7 +19,7 @@ from engine.strategies import STRATEGIES, strategy_of
 
 from . import alerts
 
-PAIRS = tuple(K.PAIRS)
+PAIRS = tuple(K.LIVE_PAIRS)                # the pairs the live scanner runs (EUR/USD added 28 Nov 2026)
 FINAL_STATES = {"stop", "target", "breakeven", "time"}
 TF_STEP = {"H1": pd.Timedelta("1h"), "M15": pd.Timedelta("15min"), "M5": pd.Timedelta("5min")}
 PRACTICE_FILE = Path(__file__).resolve().parent / "data" / "practice.json.gz"
@@ -129,12 +129,27 @@ def backfill_d1(feed, pair: str, hist: pd.DataFrame) -> pd.DataFrame:
     return pd.concat([d1, hist[["open", "high", "low", "close"]]]).sort_index()
 
 
-def d1_history(store, pair: str) -> pd.DataFrame | None:
+def kept_frames(stored: dict) -> dict | None:
+    """M15/H1 candles kept from earlier scans (latest_candles tf 'M15_feed' / 'H1_feed'), or None."""
+    out = {}
+    for tf in ("M15", "H1"):
+        df = _rows_df(stored.get(f"{tf}_feed") or [])
+        if df is None:
+            return None
+        out[tf] = df
+    return out
+
+
+def d1_history(store, pair: str, stored: dict | None = None) -> pd.DataFrame | None:
     """Stored long D1 history ([unix_s, o, h, l, c] rows in latest_candles, tf 'D1_hist'), or None."""
     try:
-        rows = store.get_candles(pair).get("D1_hist") or []
+        rows = (stored if stored is not None else store.get_candles(pair)).get("D1_hist") or []
     except Exception:                                 # never fail a scan over history
         return None
+    return _rows_df(rows)
+
+
+def _rows_df(rows: list) -> pd.DataFrame | None:
     if not rows:
         return None
     df = pd.DataFrame(rows, columns=["t", "open", "high", "low", "close"])
@@ -144,7 +159,7 @@ def d1_history(store, pair: str) -> pd.DataFrame | None:
 
 def run_scan(store, feed, now: pd.Timestamp | None = None, trigger: str = "manual", counts_credits: bool = True,
              base_url: str = "") -> dict:
-    """Scan both pairs, log new ready setups, update tracked outcomes, save the scan."""
+    """Scan the live pairs, log new ready setups, update tracked outcomes, save the scan."""
     now = now or pd.Timestamp.now(tz="UTC").floor("s")
     settings = store.get_settings()
     started = pd.Timestamp.now(tz="UTC").isoformat()
@@ -159,12 +174,27 @@ def run_scan(store, feed, now: pd.Timestamp | None = None, trigger: str = "manua
     markets, errors = {}, []
     calls_before = getattr(feed, "calls", 0)
     backup_before = TD.backup_calls
-    had_hist, backfills, hist_notes = {}, 1, []                       # at most one extra feed call per scan (rate limit)
-    for pair in PAIRS:
+    had_hist, hist_notes = {}, []
+    uses_kept = getattr(feed, "uses_kept", False)
+    left = TD.MAX_CALLS_PER_MINUTE                   # calls this scan may make (free plan: 8 a minute)
+    backfills = 1                                    # feeds without kept candles: one history call per scan
+    for n, pair in enumerate(PAIRS):
         try:
-            hist = d1_history(store, pair)
+            try:
+                stored = store.get_candles(pair)
+            except Exception:                         # never fail a scan over stored candles
+                stored = {}
+            hist = d1_history(store, pair, stored)
             had_hist[pair] = hist is not None
-            if hist is not None and len(hist) < D1_HIST_MIN and backfills and hasattr(feed, "history_h1"):
+            kept = kept_frames(stored) if uses_kept else None
+            cost = 1 if uses_kept and TD.plan_fetch(kept, now) == "light" else 3
+            later = len(PAIRS) - n - 1                # keep at least one call for each pair still to come
+            if uses_kept and cost > left - later:
+                errors.append(f"{pair}: waiting for a full candle download next scan (8 calls a minute)")
+                continue
+            if (hist is not None and len(hist) < D1_HIST_MIN and hasattr(feed, "history_h1")
+                    and (left - cost - later >= 1 if uses_kept else backfills > 0)):
+                left -= 1
                 backfills -= 1
                 try:
                     n0 = len(hist)
@@ -172,7 +202,12 @@ def run_scan(store, feed, now: pd.Timestamp | None = None, trigger: str = "manua
                     hist_notes.append(f"{pair} D1 history {n0} -> {len(hist)} days")
                 except Exception as e:                # history is a nice-to-have: never fail the scan
                     errors.append(f"{pair}: D1 history backfill: {e}")
-            markets[pair] = Market.from_frames({**feed.frames(pair, now), "D1_hist": hist}, now)
+            c0 = getattr(feed, "calls", 0)
+            fr = feed.frames(pair, now, kept=kept) if uses_kept else feed.frames(pair, now)
+            left -= getattr(feed, "calls", 0) - c0
+            if uses_kept and getattr(feed, "last_mode", "") == "full":
+                hist_notes.append(f"{pair}: full candle download")
+            markets[pair] = Market.from_frames({**fr, "D1_hist": hist}, now)
         except FeedError as e:
             errors.append(f"{pair}: {e}")
         except Exception as e:                        # bad data must not kill the scan for the other pair
@@ -185,14 +220,16 @@ def run_scan(store, feed, now: pd.Timestamp | None = None, trigger: str = "manua
         row.update(message="; ".join(errors) or "no data", finished_at=pd.Timestamp.now(tz="UTC").isoformat())
         store.add_scan(row)
         raise ScanError(row["message"])
-    spreads = {p: float(settings["spreads"][p]) for p in PAIRS}
+    spreads = {p: float(settings["spreads"][p]) for p in markets}
     res = scan(markets, spreads)
     try:
         store.save_candles([{"pair": p, "tf": tf, "data": data}
                             for p, m in markets.items() for tf, data in all_tf_candles(m).items()]
                            + [{"pair": p, "tf": "D1_hist",            # without history the first day may be partial
                                "data": compact_candles(m.frames["D1"].iloc[0 if had_hist.get(p) else 1:], D1_HIST_DAYS)}
-                              for p, m in markets.items()])
+                              for p, m in markets.items()]
+                         + [{"pair": p, "tf": f"{tf}_feed", "data": compact_candles(m.frames[tf], n)}
+                            for p, m in markets.items() for tf, n in TD.KEEP.items()])
     except Exception as e:                            # charts only; never fail a scan over it
         errors.append(f"saving chart candles: {e}")
 

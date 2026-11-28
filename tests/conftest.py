@@ -13,7 +13,7 @@ from web.store import MemoryStore
 
 @pytest.fixture(scope="module")
 def replay():
-    m1 = {p: clean(load_m1_csv(K.PAIRS[p]["file"]))[0] for p in K.PAIRS}
+    m1 = {p: clean(load_m1_csv(K.LIVE_PAIRS[p]["file"]))[0] for p in K.LIVE_PAIRS}
     return ReplayFeed({p: d[(d.index >= "2023-01-01") & (d.index < "2023-08-01")] for p, d in m1.items()})
 
 

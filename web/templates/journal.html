@@ -14,8 +14,8 @@
   <select id="strategy" name="strategy" style="width:auto"><option value="">All strategies</option>
     {% for sid, s in strategies.items() %}<option value="{{ sid }}" {{ 'selected' if strat == sid }}>{{ s.name }}</option>{% endfor %}</select>
   <label class="sr" for="pair">Pair</label>
-  <select id="pair" name="pair" style="width:auto"><option value="">Both pairs</option>
-    <option {{ 'selected' if pair == 'GBPUSD' }}>GBPUSD</option><option {{ 'selected' if pair == 'XAUUSD' }}>XAUUSD</option></select>
+  <select id="pair" name="pair" style="width:auto"><option value="">All pairs</option>
+    {% for pr in pairs %}<option value="{{ pr }}" {{ 'selected' if pair == pr }}>{{ pair_name(pr) }}</option>{% endfor %}</select>
   <label class="sr" for="decision">Your decision</label>
   <select id="decision" name="decision" style="width:auto"><option value="">Any decision</option>
     <option value="none" {{ 'selected' if decision == 'none' }}>Not reviewed</option>

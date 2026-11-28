@@ -12,6 +12,7 @@ import pandas as pd
 from engine import strategies
 
 from . import mailer
+from engine import config as K
 
 SUBJECT = "Setup Scanner: "
 
@@ -37,7 +38,7 @@ def prefs(settings: dict) -> dict:
 
 
 def _price(pair: str, x) -> str:
-    return "—" if x is None else (f"{x:.5f}" if pair == "GBPUSD" else f"{x:,.2f}")
+    return K.fmt_price(pair, x)
 
 
 def _loc(t, tz: str) -> str:

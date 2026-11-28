@@ -19,7 +19,7 @@ from . import config as K
 from .calendar import next_closes
 from .setups import Market, find_orders, track_order
 
-ENGINE_VERSION = "v1.9"   # v1.9: weekend quotes dropped from the live feed; v1.8: long stored D1 history (D1 trend matched the backtests only ~62% of days on GBP/USD); v1.7: Ore's model (HTF POI, spec v26); v1.4: C2 closes inside C1's body; v1.5: order-block strategy is a full strategy (25 Nov 2026)
+ENGINE_VERSION = "v2.0"   # v2.0: EUR/USD live; scans fetch M5 only and rebuild M15/H1 on kept candles (28 Nov 2026); v1.9: weekend quotes dropped from the live feed; v1.8: long stored D1 history (D1 trend matched the backtests only ~62% of days on GBP/USD); v1.7: Ore's model (HTF POI, spec v26); v1.4: C2 closes inside C1's body; v1.5: order-block strategy is a full strategy (25 Nov 2026)
 STATS_FILE = Path(__file__).resolve().parent / "data" / "pattern_stats.json"
 MGMTS = ("M1_T1", "M1_T2", "M1_T3", "M2_T2", "M2_T3")
 LIVE_STOPS = ("S1p", "S1a", "S2")

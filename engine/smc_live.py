@@ -12,6 +12,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from . import config as K
 from .calendar import next_closes
 from .sessions import friday_late, in_killzone, session_flags
 from .setups import Market
@@ -362,9 +363,7 @@ def watch_smc_pair(mkt: Market, pair: str) -> list[dict]:
             w.update(step=2, title=f"Waiting for the {m['tf']} MSS", level=lvl, distance=abs(price - lvl),
                      beyond_now=bool(len(forming)) and (price > lvl if up else price < lvl))
             w["text"] = (f"{m['tf']} is still moving against the bias. A {m['tf']} candle must {brk} {word} "
-                         f"{lvl:.5f} (the swing that protects that move)." if pair == "GBPUSD" else
-                         f"{m['tf']} is still moving against the bias. A {m['tf']} candle must {brk} {word} "
-                         f"{lvl:,.2f} (the swing that protects that move).")
+                         f"{K.fmt_price(pair, lvl)} (the swing that protects that move).")
         else:
             x = _leg_extreme(h, l, last["j"], d)
             lvl = float(h[x] if up else l[x])
@@ -390,7 +389,7 @@ def watch_smc_pair(mkt: Market, pair: str) -> list[dict]:
 
 
 def _fmt(pair: str, v: float) -> str:
-    return f"{v:.5f}" if pair in ("GBPUSD", "EURUSD") else f"{v:,.2f}"
+    return K.fmt_price(pair, v)
 
 
 TAP_RECENT = 50          # M15 candles: 20 (tap before the top) + 30 (pattern after the top)

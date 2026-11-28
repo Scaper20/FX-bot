@@ -47,7 +47,7 @@
       <td data-label="Currency">{{ e.currency }}</td><td data-label="Event">{{ e.title }}</td>
       <td data-label="Blocked">{{ loc(e.time, '%H:%M') }} ± {{ p.news_min }} min{% if e.currency == 'USD' %} · all pairs{% endif %}</td></tr>{% endfor %}</tbody>
   </table></div>
-  {% else %}<p class="muted">No high-impact USD or GBP news in the next 3 days{% if not news_fetched %}, or the calendar hasn't loaded yet{% endif %}.</p>{% endif %}
+  {% else %}<p class="muted">No high-impact news for your pairs (USD, GBP, EUR) in the next 3 days{% if not news_fetched %}, or the calendar hasn't loaded yet{% endif %}.</p>{% endif %}
   <p class="small muted">Limit orders that could fill, and stops or targets that could be hit, inside a window count as trades: move or cancel them first. USD news blocks every pair. Calendar: ForexFactory weekly feed{% if news_fetched %}, updated {{ loc(news_fetched) }}{% endif %}.</p>
   <form method="post" action="{{ url_for('prop_news_refresh') }}"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><button class="btn small ghost" type="submit">Refresh the calendar now</button></form>
 </section>
@@ -65,8 +65,8 @@
       <label>Daily loss %<input name="daily_pct" inputmode="decimal" value="{{ p.daily_pct }}" style="max-width:80px"></label>
       <label>Trailing max loss %<input name="trailing_pct" inputmode="decimal" value="{{ p.trailing_pct }}" style="max-width:80px"></label>
       <label>Risk per trade %<input name="risk_pct" inputmode="decimal" value="{{ p.risk_pct }}" style="max-width:80px"></label>
-      <label>Leverage GBP/USD 1:<input name="lev_GBPUSD" inputmode="numeric" value="{{ p.leverage.GBPUSD }}" style="max-width:70px"></label>
-      <label>Leverage gold 1:<input name="lev_XAUUSD" inputmode="numeric" value="{{ p.leverage.XAUUSD }}" style="max-width:70px"></label>
+      {% for pr in pairs %}<label>Leverage {{ pair_name(pr) }} 1:<input name="lev_{{ pr }}" inputmode="numeric" value="{{ p.leverage[pr] }}" style="max-width:70px"></label>
+      {% endfor %}
       <label>News window (min)<input name="news_min" inputmode="numeric" value="{{ p.news_min }}" style="max-width:70px"></label>
     </div>
     <fieldset><legend>Strategies in the plan</legend>
@@ -84,7 +84,7 @@
     <li>Target {{ p.target_pct | round(1) | string | replace('.0', '') }}% of the starting balance; at least 2 trading days; no time limit.</li>
     <li><b>No hedging</b>: never hold a buy and a sell on the same pair. If two strategies disagree, take only the first.</li>
     <li>Place every trade by hand. EAs, trade copiers, signal bots and trade-management services are not allowed.</li>
-    <li>Leverage 1:{{ p.leverage.GBPUSD }} on GBP/USD and 1:{{ p.leverage.XAUUSD }} on gold: a tight-stop gold trade can use most of the margin, so the site caps prop lot sizes ("capped").</li>
+    <li>Leverage {% for pr in pairs %}1:{{ p.leverage[pr] }} on {{ pair_name(pr) }}{{ ', ' if not loop.last }}{% endfor %}: a tight-stop gold trade can use most of the margin, so the site caps prop lot sizes ("capped").</li>
     <li>Weekend holding is allowed. Funded: 80% of profit, payouts every 14 days.</li>
   </ul>
   <p class="small muted">From the firm's "Trading Rules and Guidelines" (read 27 Nov 2026). The firm's own rules win if they change.</p>

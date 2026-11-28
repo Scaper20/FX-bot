@@ -12,13 +12,20 @@ import urllib.request
 
 import pandas as pd
 
+from .. import config as K
 from ..calendar import open_mask
+from ..candles import resample_from
 
 BASE = "https://api.twelvedata.com/time_series"
-SYMBOLS = {"GBPUSD": "GBP/USD", "XAUUSD": "XAU/USD"}
+SYMBOLS = {p: f"{p[:3]}/{p[3:]}" for p in (*K.LIVE_PAIRS, *K.PAID_PLAN_PAIRS)}
 INTERVAL = {"M5": "5min", "M15": "15min", "H1": "1h"}
 OUTPUTSIZE = {"H1": 3500, "M15": 2100, "M5": 3500}   # ~2,500 / 1,500 / 2,500 trading candles once weekends are dropped
-CALLS_PER_SCAN = len(SYMBOLS) * len(INTERVAL)
+KEEP = {"H1": 2500, "M15": 1500}                     # candles kept between scans (the live amounts the backtests used)
+# Since 28 Nov 2026 a scan fetches only M5 (1 credit a pair) and rebuilds M15/H1 from it on top of the candles kept
+# from earlier scans; checked on GBP/USD and EUR/USD: 921 M15 and 229 H1 built candles identical to Twelve Data's own.
+CALLS_PER_SCAN = len(K.LIVE_PAIRS)                   # usual cost; a pair without kept candles costs 3 once
+MAX_CALLS_PER_MINUTE = 8                             # free plan
+STALE = pd.Timedelta("4D")                           # kept candles older than this -> full fetch (3,500 M5 ~ 12 days raw)
 
 
 class FeedError(Exception):
@@ -113,9 +120,48 @@ class TwelveDataFeed:
         df = fetch(pair, "H1", outputsize=5000, opener=self.opener, end_date=end)
         return df[df.index < end]
 
-    def frames(self, pair: str, now: pd.Timestamp | None = None) -> dict[str, pd.DataFrame]:
+    uses_kept = True                                  # the scan may pass candles kept from earlier scans
+
+    def frames(self, pair: str, now: pd.Timestamp | None = None, kept: dict | None = None) -> dict[str, pd.DataFrame]:
+        """H1, M15 and M5 candles. With `kept` (closed M15/H1 candles from earlier scans) that are recent enough, only
+        M5 is fetched (1 credit); otherwise all three (3 credits)."""
+        self.last_mode = "full"
+        if plan_fetch(kept, now) == "light":
+            m5 = fetch(pair, "M5", opener=self.opener)
+            self.calls += 1
+            out = extend_from_m5(kept, m5)
+            if out is not None:
+                self.last_mode = "light"
+                return out
         out = {}
         for tf in ("H1", "M15", "M5"):
             out[tf] = fetch(pair, tf, opener=self.opener)
             self.calls += 1
         return out
+
+
+def plan_fetch(kept: dict | None, now: pd.Timestamp | None) -> str:
+    """'light' (M5 only) when kept M15/H1 candles exist, are long enough and recent; else 'full'."""
+    if not kept or any(kept.get(tf) is None or len(kept[tf]) < 0.6 * n for tf, n in KEEP.items()):
+        return "full"
+    now = now or pd.Timestamp.now(tz="UTC")
+    if any(now - kept[tf].index[-1] > STALE for tf in KEEP):
+        return "full"
+    return "light"
+
+
+def extend_from_m5(kept: dict, m5: pd.DataFrame) -> dict | None:
+    """M15/H1 = kept candles before the fetched M5 window + candles rebuilt from that M5 (whole periods only).
+    None if the M5 window does not reach back to the kept candles (a gap would be left)."""
+    if m5 is None or m5.empty:
+        return None
+    out = {"M5": m5}
+    for tf, step in (("M15", pd.Timedelta("15min")), ("H1", pd.Timedelta("1h"))):
+        old = kept[tf][["open", "high", "low", "close"]]
+        start = m5.index[0].ceil(step)                    # the first period the M5 window covers fully
+        if old.index[-1] + step < start:
+            return None
+        new = resample_from(m5, tf, K.DAY_CLOSE)[["open", "high", "low", "close"]]
+        new = new[new.index >= start]
+        out[tf] = pd.concat([old[old.index < start], new]).sort_index().tail(KEEP[tf] + 50)
+    return out

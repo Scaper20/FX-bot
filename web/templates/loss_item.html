@@ -10,7 +10,7 @@
 
 <section class="card">
   <div class="setup-head">
-    <h2 style="margin:0">{{ 'Gold' if x.pair == 'XAUUSD' else 'GBP/USD' }} <span class="pill {{ x.direction }}">{{ 'Buy' if x.direction == 'long' else 'Sell' }}</span>
+    <h2 style="margin:0">{{ pair_name(x.pair) }} <span class="pill {{ x.direction }}">{{ 'Buy' if x.direction == 'long' else 'Sell' }}</span>
       <span class="pill strat">{{ strategies[sid].name }}</span> <span class="pill">{{ x.tf ~ ' CRT' if sid == 'crt' else strategies[sid].long }}</span>
       <span class="pill bad">{{ '%+.2f' % x.R }}R</span></h2>
     <span class="muted small">shown {{ x.shown[:16].replace('T', ' ') }} GMT+0</span>

@@ -20,7 +20,7 @@ DEFAULTS = {
     "daily_pct": 3.0,
     "trailing_pct": 5.0,
     "risk_pct": 1.5,
-    "leverage": {"GBPUSD": 30, "XAUUSD": 10},
+    "leverage": {"GBPUSD": 30, "XAUUSD": 10, "EURUSD": 30, "XAGUSD": 10},
     "strategies": ["ore_poi", "irl_erl"],
     "news_min": 2,                       # no opening or closing within this many minutes of high-impact news
     "reset": "22:00 London",
@@ -30,7 +30,8 @@ DEFAULTS = {
 NEWS_URL = "https://nfs.faireconomy.media/ff_calendar_thisweek.json"   # ForexFactory weekly calendar (public)
 NEWS_KEY = "news_week"
 NEWS_EVERY = pd.Timedelta("6h")
-CURRENCIES = {"GBPUSD": {"USD", "GBP"}, "XAUUSD": {"USD"}}             # USD news affects every pair (firm rule)
+CURRENCIES = {"GBPUSD": {"USD", "GBP"}, "XAUUSD": {"USD"}, "EURUSD": {"USD", "EUR"}, "XAGUSD": {"USD"}}
+# USD news affects every pair (firm rule); a pair's own currencies are added for FX pairs
 
 
 def plan(settings: dict) -> dict:
@@ -122,7 +123,8 @@ def upcoming(store, now: pd.Timestamp, hours: float = 36, pair: str | None = Non
         c = store.get_cache(NEWS_KEY) or {}
     except Exception:
         return []
-    cur = CURRENCIES.get(pair) if pair else {"USD", "GBP"}
+    from engine import config as K
+    cur = CURRENCIES.get(pair, {"USD"}) if pair else set().union(*(CURRENCIES.get(p, {"USD"}) for p in K.LIVE_PAIRS))
     out = []
     for e in c.get("events", []):
         t = pd.Timestamp(e["time"])

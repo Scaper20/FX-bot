@@ -8,19 +8,19 @@
   <form method="post">
     <input type="hidden" name="csrf" value="{{ csrf_token() }}">
     {% if not st.get('spreads_confirmed') %}<p class="flash error small">Spreads are still the defaults. Enter your real Exness Standard spreads and save, or every result is off.</p>{% endif %}
-    <label for="sg">GBP/USD spread (pips, include slippage)</label>
-    <input id="sg" name="spread_GBPUSD_pips" inputmode="decimal" value="{{ '%.2f' % (st.spreads.GBPUSD * 10000) }}">
-    <label for="sx">Gold spread (dollars, e.g. 0.35)</label>
-    <input id="sx" name="spread_XAUUSD" inputmode="decimal" value="{{ st.spreads.XAUUSD }}">
+    {% for pr in pairs %}{% if is_metal(pr) %}
+    <label for="sp{{ pr }}">{{ pair_name(pr) }} spread (dollars, include slippage)</label>
+    <input id="sp{{ pr }}" name="spread_{{ pr }}" inputmode="decimal" value="{{ st.spreads[pr] }}">{% else %}
+    <label for="sp{{ pr }}">{{ pair_name(pr) }} spread (pips, include slippage)</label>
+    <input id="sp{{ pr }}" name="spread_{{ pr }}_pips" inputmode="decimal" value="{{ '%.2f' % (st.spreads[pr] / pip_of(pr)) }}">{% endif %}{% endfor %}
     <label for="bal">Account balance (USD)</label>
     <input id="bal" name="balance" inputmode="decimal" value="{{ st.balance }}">
     <label for="risk">Risk per trade (%)</label>
     <input id="risk" name="risk_pct" inputmode="decimal" value="{{ st.risk_pct }}">
     <p class="muted small">My test plan: at most 0.25% until your live test passes, 0.5% after, never above 1%. See <a href="{{ url_for('plan_page') }}">My test</a>.</p>
-    <label for="cg">GBP/USD contract size (units per lot)</label>
-    <input id="cg" name="contract_GBPUSD" inputmode="numeric" value="{{ st.contract.GBPUSD | int }}">
-    <label for="cx">Gold contract size (ounces per lot)</label>
-    <input id="cx" name="contract_XAUUSD" inputmode="numeric" value="{{ st.contract.XAUUSD | int }}">
+    {% for pr in pairs %}
+    <label for="c{{ pr }}">{{ pair_name(pr) }} contract size ({{ 'ounces' if is_metal(pr) else 'units' }} per lot)</label>
+    <input id="c{{ pr }}" name="contract_{{ pr }}" inputmode="numeric" value="{{ st.contract[pr] | int }}">{% endfor %}
     <label for="tz">Display time zone</label>
     <input id="tz" name="tz" value="{{ st.tz }}">
     <label for="oe">Your email (alerts and test emails; never shown publicly)</label>
@@ -61,7 +61,7 @@
   <p class="small">Credits used today: <b class="mono">{{ credits }}</b> of {{ st.daily_credit_limit }}. A scan uses 6.</p>
   <form method="post" action="{{ url_for('feed_check') }}">
     <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-    <button class="btn ghost" type="submit">Check GBP/USD and gold feed (2 credits)</button>
+    <button class="btn ghost" type="submit">Check the live feed ({{ pairs | length }} credits)</button>
   </form>
   {% if feed_result %}<ul class="small">{% for line in feed_result %}<li>{{ line }}</li>{% endfor %}</ul>{% endif %}
   <h3 style="margin-top:16px">Recent scans</h3>

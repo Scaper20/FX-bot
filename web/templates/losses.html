@@ -31,7 +31,7 @@
   <form method="get" action="{{ url_for('losses_page') }}" class="row" style="gap:8px;flex-wrap:wrap;align-items:flex-end">
     <label>Strategy<select name="strategy"><option value="">All</option>{% for sid, g in ov.grid %}<option value="{{ sid }}" {{ 'selected' if flt.strategy == sid }}>{{ strategies[sid].name }}</option>{% endfor %}</select></label>
     <label>What happened<select name="cat"><option value="">All</option>{% for c, text in cats.items() %}<option value="{{ c }}" {{ 'selected' if flt.cat == c }}>{{ c }} · {{ text }}</option>{% endfor %}</select></label>
-    <label>Pair<select name="pair"><option value="">Both</option><option value="GBPUSD" {{ 'selected' if flt.pair == 'GBPUSD' }}>GBP/USD</option><option value="XAUUSD" {{ 'selected' if flt.pair == 'XAUUSD' }}>Gold</option></select></label>
+    <label>Pair<select name="pair"><option value="">Both</option>{% for pr in ('GBPUSD', 'XAUUSD') %}<option value="{{ pr }}" {{ 'selected' if flt.pair == pr }}>{{ pair_name(pr) }}</option>{% endfor %}</select></label>
     <label>Status<select name="status"><option value="">All</option><option value="todo" {{ 'selected' if flt.status == 'todo' }}>Not reviewed yet</option><option value="done" {{ 'selected' if flt.status == 'done' }}>Reviewed</option></select></label>
     <button class="btn small" type="submit">Show</button>
     {% if start_id %}<a class="btn small ghost" href="{{ url_for('loss_item', lid=start_id, **fq) }}">Start reviewing</a>{% endif %}
@@ -42,7 +42,7 @@
     <tbody>
     {% for x in lst %}
       <tr><td data-label="Shown"><a href="{{ url_for('loss_item', lid=x.id, **fq) }}">{{ x.shown[:16].replace('T', ' ') }}</a></td>
-        <td data-label="Pair">{{ 'Gold' if x.pair == 'XAUUSD' else 'GBP/USD' }}</td>
+        <td data-label="Pair">{{ pair_name(x.pair) }}</td>
         <td data-label="Strategy">{{ strategies[x.strategy].name }}{% if x.tf %} <span class="pill">{{ x.tf }}</span>{% endif %}</td>
         <td data-label="Side"><span class="pill {{ x.direction }}">{{ 'Buy' if x.direction == 'long' else 'Sell' }}</span></td>
         <td data-label="What happened"><span class="pill" title="{{ cats[x.cat] }}">{{ x.cat }}</span> <span class="small">{{ cats[x.cat] }}</span></td>

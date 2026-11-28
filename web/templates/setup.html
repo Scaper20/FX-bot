@@ -65,7 +65,7 @@
     </tbody>
   </table></div>
   {% if ops | length > 5 and not show_all %}<p><a href="{{ url_for('setup', sid=card.id, all='1') }}">Show all {{ ops | length }} options</a></p>{% endif %}
-  <p class="muted small">Lots use your balance ${{ settings.balance }} and {{ settings.risk_pct }}% risk (Settings). Gold: 1 lot = {{ settings.contract.XAUUSD | int }} oz; GBP/USD: 1 lot = {{ settings.contract.GBPUSD | int }} units. Prices come from Twelve Data and can differ slightly from Exness: check your chart before entering.</p>
+  <p class="muted small">Lots use your balance ${{ settings.balance }} and {{ settings.risk_pct }}% risk (Settings). {{ pair_name(card.pair) }}: 1 lot = {{ settings.contract[card.pair] | int }} {{ 'oz' if is_metal(card.pair) else 'units' }}. Prices come from Twelve Data and can differ slightly from Exness: check your chart before entering.</p>
 </section>
 
 <div class="grid two">
