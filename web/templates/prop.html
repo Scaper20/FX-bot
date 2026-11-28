@@ -47,7 +47,7 @@
       <td data-label="Currency">{{ e.currency }}</td><td data-label="Event">{{ e.title }}</td>
       <td data-label="Blocked">{{ loc(e.time, '%H:%M') }} ± {{ p.news_min }} min{% if e.currency == 'USD' %} · all pairs{% endif %}</td></tr>{% endfor %}</tbody>
   </table></div>
-  {% else %}<p class="muted">No high-impact news for your pairs (USD, GBP, EUR) in the next 3 days{% if not news_fetched %}, or the calendar hasn't loaded yet{% endif %}.</p>{% endif %}
+  {% else %}<p class="muted">No high-impact news for your pairs ({{ news_currencies }}) in the next 3 days{% if not news_fetched %}, or the calendar hasn't loaded yet{% endif %}.</p>{% endif %}
   <p class="small muted">Limit orders that could fill, and stops or targets that could be hit, inside a window count as trades: move or cancel them first. USD news blocks every pair. Calendar: ForexFactory weekly feed{% if news_fetched %}, updated {{ loc(news_fetched) }}{% endif %}.</p>
   <form method="post" action="{{ url_for('prop_news_refresh') }}"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><button class="btn small ghost" type="submit">Refresh the calendar now</button></form>
 </section>

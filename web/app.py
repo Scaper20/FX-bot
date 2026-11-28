@@ -418,7 +418,8 @@ def create_app(store=None, feed=None, now_fn=None) -> Flask:
                 flash("Some values look wrong; nothing saved.", "error")
             return redirect(url_for("prop_page"))
         return render_template("prop.html", p=p, s=prop.status(st), news=prop.upcoming(store(), now(), hours=72),
-                               news_fetched=prop.news_fetched(store()), nav="prop")
+                               news_fetched=prop.news_fetched(store()), nav="prop",
+                               news_currencies=", ".join(sorted(set().union(*(prop.CURRENCIES.get(x, {"USD"}) for x in K.LIVE_PAIRS)))))
 
     @app.route("/prop/news-refresh", methods=["POST"])
     @login_required

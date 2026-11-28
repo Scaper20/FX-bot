@@ -12,6 +12,8 @@ import urllib.request
 
 import pandas as pd
 
+from engine import config as K
+
 DEFAULTS = {
     "on": False,
     "firm": "Equity Edge · 1-Step Swift",
@@ -20,7 +22,7 @@ DEFAULTS = {
     "daily_pct": 3.0,
     "trailing_pct": 5.0,
     "risk_pct": 1.5,
-    "leverage": {"GBPUSD": 30, "XAUUSD": 10, "EURUSD": 30, "XAGUSD": 10},
+    "leverage": {"GBPUSD": 30, "XAUUSD": 10, "EURUSD": 30, "XAGUSD": 10, "USDCHF": 30},
     "strategies": ["ore_poi", "irl_erl"],
     "news_min": 2,                       # no opening or closing within this many minutes of high-impact news
     "reset": "22:00 London",
@@ -30,7 +32,8 @@ DEFAULTS = {
 NEWS_URL = "https://nfs.faireconomy.media/ff_calendar_thisweek.json"   # ForexFactory weekly calendar (public)
 NEWS_KEY = "news_week"
 NEWS_EVERY = pd.Timedelta("6h")
-CURRENCIES = {"GBPUSD": {"USD", "GBP"}, "XAUUSD": {"USD"}, "EURUSD": {"USD", "EUR"}, "XAGUSD": {"USD"}}
+CURRENCIES = {"GBPUSD": {"USD", "GBP"}, "XAUUSD": {"USD"}, "EURUSD": {"USD", "EUR"}, "XAGUSD": {"USD"},
+              "USDCHF": {"USD", "CHF"}}
 # USD news affects every pair (firm rule); a pair's own currencies are added for FX pairs
 
 
@@ -50,15 +53,15 @@ def lot(settings: dict, pair: str, entry: float, stop: float) -> dict:
     contract = float(settings["contract"][pair])
     bal = float(p["balance"]) or float(p["size"])
     risk_amt = float(p["size"]) * float(p["risk_pct"]) / 100.0
-    per_lot = abs(entry - stop) * contract
+    per_lot = K.to_usd(pair, abs(entry - stop) * contract, entry) if entry > 0 else 0.0
     if per_lot <= 0 or entry <= 0:
         return {"lots": 0.0, "risk_amount": 0.0, "capped": False, "margin": 0.0, "too_small": True}
     want = risk_amt / per_lot
-    max_lots = bal * float(p["leverage"].get(pair, 30)) / (entry * contract)
-    lots = math.floor(min(want, max_lots) * 100) / 100
+    max_lots = bal * float(p["leverage"].get(pair, 30)) / K.notional_usd(pair, entry, contract)
+    lots = math.floor(min(want, max_lots) * 100 + 1e-9) / 100
     return {"lots": lots, "risk_amount": round(lots * per_lot, 2), "target_risk": round(risk_amt, 2),
             "capped": want > max_lots, "max_lots": round(max_lots, 2),
-            "margin": round(lots * entry * contract / float(p["leverage"].get(pair, 30)), 2), "too_small": lots < 0.01}
+            "margin": round(lots * K.notional_usd(pair, entry, contract) / float(p["leverage"].get(pair, 30)), 2), "too_small": lots < 0.01}
 
 
 def status(settings: dict) -> dict:
@@ -123,7 +126,6 @@ def upcoming(store, now: pd.Timestamp, hours: float = 36, pair: str | None = Non
         c = store.get_cache(NEWS_KEY) or {}
     except Exception:
         return []
-    from engine import config as K
     cur = CURRENCIES.get(pair, {"USD"}) if pair else set().union(*(CURRENCIES.get(p, {"USD"}) for p in K.LIVE_PAIRS))
     out = []
     for e in c.get("events", []):

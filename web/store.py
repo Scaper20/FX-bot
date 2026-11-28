@@ -21,10 +21,10 @@ import urllib.request
 from pathlib import Path
 
 DEFAULT_SETTINGS = {
-    "spreads": {"GBPUSD": 0.00010, "XAUUSD": 0.35, "EURUSD": 0.00010, "XAGUSD": 0.025},
+    "spreads": {"GBPUSD": 0.00010, "XAUUSD": 0.35, "EURUSD": 0.00010, "XAGUSD": 0.025, "USDCHF": 0.00015},
     "balance": 1000.0,
     "risk_pct": 0.25,          # docs/plan-judgment.md: 0.25% until the test passes
-    "contract": {"GBPUSD": 100000, "XAUUSD": 100, "EURUSD": 100000, "XAGUSD": 5000},
+    "contract": {"GBPUSD": 100000, "XAUUSD": 100, "EURUSD": 100000, "XAGUSD": 5000, "USDCHF": 100000},
     "tz": "Africa/Lagos",
     "daily_credit_limit": 780,
 }

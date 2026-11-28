@@ -19,11 +19,13 @@ PAIRS = {
 LIVE_PAIRS = {
     **PAIRS,
     "EURUSD": {"spread": 0.00010, "pip": 0.0001, "file": "data/eurusd-m1-bid-2021-11-01-2026-11-19.zip"},
+    # 28 Nov 2026, Ore: add USD/CHF either way (spec v33 did not select it). Spread assumed 1.5 pips until Ore gives his.
+    "USDCHF": {"spread": 0.00015, "pip": 0.0001, "file": "data/td/usdchf-m5.csv.gz"},
 }
 PAID_PLAN_PAIRS = {
     "XAGUSD": {"spread": 0.025, "pip": 0.01, "file": "data/xagusd-m1-bid-2021-11-01-2026-11-19.zip"},
 }
-NAMES = {"GBPUSD": "GBP/USD", "XAUUSD": "Gold", "EURUSD": "EUR/USD", "XAGUSD": "Silver"}
+NAMES = {"GBPUSD": "GBP/USD", "XAUUSD": "Gold", "EURUSD": "EUR/USD", "XAGUSD": "Silver", "USDCHF": "USD/CHF"}
 METALS = ("XAU", "XAG", "XPT")
 
 
@@ -38,6 +40,20 @@ def is_metal(pair: str) -> bool:
 def decimals(pair: str) -> int:
     """Price decimals: gold 2, silver 3, JPY pairs 3, other FX 5."""
     return {"XAU": 2, "XAG": 3, "XPT": 2}.get(pair[:3], 3 if pair.endswith("JPY") else 5)
+
+
+def to_usd(pair: str, amount: float, price: float) -> float:
+    """An amount in the pair's quote currency, in USD: XXX/USD as is, USD/XXX divided by the price."""
+    if pair.endswith("USD"):
+        return amount
+    if pair.startswith("USD"):
+        return amount / price
+    raise ValueError(f"{pair}: no USD leg, needs a conversion rate")
+
+
+def notional_usd(pair: str, price: float, contract: float) -> float:
+    """Value of one lot in USD: price x contract for XXX/USD, the contract itself for USD/XXX."""
+    return contract if pair.startswith("USD") else to_usd(pair, price * contract, price)
 
 
 def fmt_price(pair: str, x) -> str:

@@ -87,11 +87,12 @@ def test_scans_stay_under_8_calls_and_switch_to_m5_only(replay3):
     feed.calls = 0
     service.run_scan(store, feed, t + pd.Timedelta("15min"), trigger="test", counts_credits=True)
     assert feed.calls <= TD.MAX_CALLS_PER_MINUTE
-    assert feed.modes == {"GBPUSD": "light", "XAUUSD": "light", "EURUSD": "full"}
-    feed.calls = 0
-    service.run_scan(store, feed, t + pd.Timedelta("30min"), trigger="test", counts_credits=True)
-    assert set(feed.modes.values()) == {"light"}
-    assert feed.calls - sum(1 for p in K.LIVE_PAIRS) <= 3                  # 1 a pair + at most the D1 backfills
+    assert {p: feed.modes[p] for p in ("GBPUSD", "XAUUSD", "EURUSD")} == {"GBPUSD": "light", "XAUUSD": "light", "EURUSD": "full"}
+    for k in range(2, 5):                                                   # later pairs get their full download in turn
+        feed.calls = 0
+        service.run_scan(store, feed, t + pd.Timedelta(f"{15 * k}min"), trigger="test", counts_credits=True)
+        assert feed.calls <= TD.MAX_CALLS_PER_MINUTE
+    assert set(feed.modes) == set(K.LIVE_PAIRS) and set(feed.modes.values()) == {"light"}
 
 
 def test_eurusd_settings_and_prop_news():
@@ -116,3 +117,18 @@ def test_settings_form_saves_eurusd(env):
     st = store.get_settings()
     assert st["spreads"]["EURUSD"] == pytest.approx(0.00008) and st["spreads"]["XAGUSD"] == pytest.approx(0.025)
     assert 'name="lev_EURUSD"' in c.get("/prop").get_data(as_text=True)
+
+
+def test_usdchf_lots_are_priced_in_usd():
+    """USD/CHF moves are in CHF: risk per lot = distance x 100,000 / price; one lot is worth $100,000."""
+    from web import prop
+    from web.store import merged_settings
+    st = merged_settings({})
+    assert "USDCHF" in K.LIVE_PAIRS and st["spreads"]["USDCHF"] == pytest.approx(0.00015)
+    r = service.lot_size({**st, "balance": 5000, "risk_pct": 1.0}, "USDCHF", 0.8000, 0.7980)   # 20 pips
+    assert r["per_lot"] == pytest.approx(250.0)                       # 0.0020 x 100,000 CHF = 200 CHF = $250
+    assert r["lots"] == 0.2
+    pl = prop.lot({**st, "prop": {**st.get("prop", {}), "on": True}}, "USDCHF", 0.8000, 0.7980)
+    assert pl["max_lots"] == pytest.approx(5000 * 30 / 100000, abs=0.01)
+    assert K.fmt_distance("USDCHF", 0.0020) == "20.0 pips" and K.fmt_price("USDCHF", 0.81234567) == "0.81235"
+    assert "CHF" in set().union(*(prop.CURRENCIES[p] for p in K.LIVE_PAIRS))

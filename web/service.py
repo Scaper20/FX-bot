@@ -103,10 +103,10 @@ def actionable(op: dict, st: dict, now: pd.Timestamp) -> str | None:
 
 def lot_size(settings: dict, pair: str, entry: float, stop: float) -> dict:
     risk_amt = float(settings["balance"]) * float(settings["risk_pct"]) / 100.0
-    per_lot = abs(entry - stop) * float(settings["contract"][pair])
+    per_lot = K.to_usd(pair, abs(entry - stop) * float(settings["contract"][pair]), entry) if entry > 0 else 0.0
     if per_lot <= 0:
         return {"lots": 0.0, "risk_amount": 0.0, "per_lot": 0.0}
-    lots = math.floor(risk_amt / per_lot * 100) / 100
+    lots = math.floor(risk_amt / per_lot * 100 + 1e-9) / 100     # 0.2 must not round down to 0.19
     return {"lots": lots, "risk_amount": round(lots * per_lot, 2), "target_risk": round(risk_amt, 2),
             "per_lot": round(per_lot, 2), "too_small": lots < 0.01}
 
@@ -178,22 +178,28 @@ def run_scan(store, feed, now: pd.Timestamp | None = None, trigger: str = "manua
     uses_kept = getattr(feed, "uses_kept", False)
     left = TD.MAX_CALLS_PER_MINUTE                   # calls this scan may make (free plan: 8 a minute)
     backfills = 1                                    # feeds without kept candles: one history call per scan
+    stored_all = {}
+    for pair in PAIRS:
+        try:
+            stored_all[pair] = store.get_candles(pair)
+        except Exception:                             # never fail a scan over stored candles
+            stored_all[pair] = {}
+    kept_all = {p: kept_frames(stored_all[p]) if uses_kept else None for p in PAIRS}
+    costs = {p: 1 if uses_kept and TD.plan_fetch(kept_all[p], now) == "light" else 3 for p in PAIRS}
     for n, pair in enumerate(PAIRS):
         try:
-            try:
-                stored = store.get_candles(pair)
-            except Exception:                         # never fail a scan over stored candles
-                stored = {}
+            stored = stored_all[pair]
             hist = d1_history(store, pair, stored)
             had_hist[pair] = hist is not None
-            kept = kept_frames(stored) if uses_kept else None
-            cost = 1 if uses_kept and TD.plan_fetch(kept, now) == "light" else 3
+            kept = kept_all[pair]
+            cost = costs[pair]
             later = len(PAIRS) - n - 1                # keep at least one call for each pair still to come
             if uses_kept and cost > left - later:
                 errors.append(f"{pair}: waiting for a full candle download next scan (8 calls a minute)")
                 continue
+            # D1 backfills only use calls no later pair needs (full downloads come first)
             if (hist is not None and len(hist) < D1_HIST_MIN and hasattr(feed, "history_h1")
-                    and (left - cost - later >= 1 if uses_kept else backfills > 0)):
+                    and (left - cost - sum(costs[q] for q in PAIRS[n + 1:]) >= 1 if uses_kept else backfills > 0)):
                 left -= 1
                 backfills -= 1
                 try:
