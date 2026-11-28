@@ -38,7 +38,21 @@ EXTRA = {"USDJPY": {"spread": 0.010, "file": "data/td/usdjpy-m5.csv.gz"},
          "USDCHF": {"spread": 0.00015, "file": "data/td/usdchf-m5.csv.gz"},
          "NZDUSD": {"spread": 0.00015, "file": "data/td/nzdusd-m5.csv.gz"},
          "EURGBP": {"spread": 0.00015, "file": "data/td/eurgbp-m5.csv.gz"},
-         "XPTUSD": {"spread": 2.0, "file": "data/td/xptusd-m5.csv.gz"}}
+         "XPTUSD": {"spread": 2.0, "file": "data/td/xptusd-m5.csv.gz"},
+         # spec v34 candidates (28 Nov 2026): spreads assumed until Ore gives his real ones
+         "AUDJPY": {"spread": 0.02, "file": "data/td/audjpy-m5.csv.gz"},
+         "GBPCHF": {"spread": 0.00025, "file": "data/td/gbpchf-m5.csv.gz"},
+         "GBPNZD": {"spread": 0.00035, "file": "data/td/gbpnzd-m5.csv.gz"},
+         "GBPAUD": {"spread": 0.00025, "file": "data/td/gbpaud-m5.csv.gz"},
+         "AUDCHF": {"spread": 0.0002, "file": "data/td/audchf-m5.csv.gz"},
+         "NZDCHF": {"spread": 0.00025, "file": "data/td/nzdchf-m5.csv.gz"},
+         "GBPCAD": {"spread": 0.0003, "file": "data/td/gbpcad-m5.csv.gz"},
+         "CADJPY": {"spread": 0.02, "file": "data/td/cadjpy-m5.csv.gz"},
+         "CADCHF": {"spread": 0.00025, "file": "data/td/cadchf-m5.csv.gz"},
+         "EURCAD": {"spread": 0.00025, "file": "data/td/eurcad-m5.csv.gz"},
+         "EURNZD": {"spread": 0.00035, "file": "data/td/eurnzd-m5.csv.gz"},
+         "AUDCAD": {"spread": 0.0002, "file": "data/td/audcad-m5.csv.gz"},
+         "BTCUSD": {"spread": 30.0, "file": "data/td/btcusd-m5.csv.gz"}}
 TFS = ("M15", "H1", "H4", "D1")
 HOLD = {"M15": "2D", "H1": "5D", "H4": "15D", "D1": "45D"}
 N = 3                     # swing: beyond the 3 candles each side, known 3 candles later

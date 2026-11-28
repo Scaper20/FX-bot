@@ -1,6 +1,7 @@
 """Spec v33 (docs/spec-v33-complement-pairs.md): two pairs to go with GBP/USD, gold, EUR/USD (and silver).
 
     python -m backtest.complement_v33 --candles DIR REPLAY.csv [...]  -> backtest/out/v33_complement.csv
+    python -m backtest.complement_v33 --spec v34 --candles DIR REPLAY.csv [...]  -> backtest/out/v34_complement.csv
 
 Baselines: B = GBP/USD + gold + EUR/USD + silver (Ore's plan); B' = without silver (what runs live on the free plan).
 At 1.5% risk: each candidate's own net R, B(+X) and B'(+X) pass rate and funded payout; then every two-pair
@@ -22,14 +23,18 @@ from backtest.prop_sim import Plan, Rules, evaluate, funded_value, load  # noqa:
 
 PLAN = ("ore_poi", "irl_erl")
 START, END = pd.Timestamp("2022-06-01", tz="UTC"), pd.Timestamp("2026-11-18", tz="UTC")
-BASES = {"B": ("GBPUSD", "XAUUSD", "EURUSD", "XAGUSD"), "B'": ("GBPUSD", "XAUUSD", "EURUSD")}
+SPECS = {
+    "v33": {"B": ("GBPUSD", "XAUUSD", "EURUSD", "XAGUSD"), "B'": ("GBPUSD", "XAUUSD", "EURUSD")},
+    # spec v34: USD/CHF now live (Ore's decision); C = the live pairs, C+ = with silver (paid plan)
+    "v34": {"C": ("GBPUSD", "XAUUSD", "EURUSD", "USDCHF"), "C+silver": ("GBPUSD", "XAUUSD", "EURUSD", "USDCHF", "XAGUSD")},
+}
 RISK = 0.015
 _T: dict = {}
 
 
 def _one(args):
     base, extra = args
-    pairs = BASES[base] + tuple(extra)
+    pairs = _T["bases"][base] + tuple(extra)
     t = _T["t"][_T["t"]["pair"].isin(pairs)].reset_index(drop=True)
     rules, plan = Rules(), Plan(RISK, PLAN)
     e, f = evaluate(t, rules, plan), funded_value(t, rules, plan)
@@ -43,14 +48,16 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("files", nargs="+")
     ap.add_argument("--candles")
+    ap.add_argument("--spec", default="v33", choices=sorted(SPECS))
     a = ap.parse_args()
+    BASES = SPECS[a.spec]
     t = load(a.files, a.candles)
     t = t[t["strategy"].isin(PLAN) & (t["fill"] >= START) & (t["fill"] < END)].reset_index(drop=True)
     own = t.groupby("pair")["R"].agg(["count", "sum"]).round(1)
     print(t.groupby(["pair", "strategy"])["R"].agg(["count", "sum"]).round(1).to_string(), "\n")
-    cands = [p for p in own.index if p not in BASES["B"]]
+    cands = [p for p in own.index if not any(p in b for b in BASES.values())]
     jobs = [(b, ()) for b in BASES] + [(b, (p,)) for b in BASES for p in cands]
-    with Pool(4, initializer=_T.update, initargs=({"t": t},)) as pool:
+    with Pool(4, initializer=_T.update, initargs=({"t": t, "bases": BASES},)) as pool:
         rows = pool.map(_one, jobs)
         r = pd.DataFrame(rows)
         picks = {}
@@ -63,7 +70,7 @@ def main() -> int:
         combos = sorted({(b, c) for b, (_, ok) in picks.items() for c in itertools.combinations(sorted(ok), 2)})
         r2 = pd.DataFrame(pool.map(_one, combos)) if combos else pd.DataFrame(columns=r.columns)
     d = pd.concat([r, r2], ignore_index=True)
-    out = ROOT / "backtest" / "out" / "v33_complement.csv"
+    out = ROOT / "backtest" / "out" / f"{a.spec}_complement.csv"
     d.to_csv(out, index=False)
     print(d.to_string(index=False), "\n")
     for b, (base, ok) in picks.items():

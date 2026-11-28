@@ -21,6 +21,10 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 
+V34_FX = ("AUDJPY", "GBPCHF", "GBPNZD", "GBPAUD", "AUDCHF", "NZDCHF", "GBPCAD", "CADJPY", "CADCHF", "EURCAD",
+          "EURNZD", "AUDCAD")
+
+
 @dataclass
 class Rules:
     balance: float = 5000.0
@@ -35,12 +39,14 @@ class Rules:
     leverage: dict = field(default_factory=lambda: {"GBPUSD": 30, "EURUSD": 30, "AUDUSD": 30, "USDJPY": 30,
                                                      "XAUUSD": 10, "XAGUSD": 10, "XPTUSD": 10, "GBPJPY": 30,
                                                      "EURJPY": 30, "USDCAD": 30, "USDCHF": 30, "NZDUSD": 30,
-                                                     "EURGBP": 30})
+                                                     "EURGBP": 30,
+                                                     # spec v34 candidates; BTC 1:2 = crypto leverage assumed (unverified)
+                                                     **{p: 30 for p in V34_FX}, "BTCUSD": 2})
     contract: dict = field(default_factory=lambda: {"GBPUSD": 100_000, "EURUSD": 100_000, "AUDUSD": 100_000,
                                                     "USDJPY": 100_000, "XAUUSD": 100, "XAGUSD": 5000,
                                                     "XPTUSD": 100, "GBPJPY": 100_000, "EURJPY": 100_000,
                                                     "USDCAD": 100_000, "USDCHF": 100_000, "NZDUSD": 100_000,
-                                                    "EURGBP": 100_000})
+                                                    "EURGBP": 100_000, **{p: 100_000 for p in V34_FX}, "BTCUSD": 1})
     no_hedge: bool = True         # hedging is prohibited: skip a trade opposite an open one on the same pair
     payout_days: int | None = None  # funded stage: pay out profit every N days (no target)
     split: float = 0.8
@@ -57,7 +63,8 @@ class Plan:
     label: str = field(default="")
 
 
-FX_USD = {"JPY": 1 / 150, "GBP": 1.30, "EUR": 1.10}    # fixed rates for crosses (spec v33; only the leverage cap uses them)
+FX_USD = {"JPY": 1 / 150, "GBP": 1.30, "EUR": 1.10,   # fixed rates for crosses (spec v33; only the leverage cap uses them)
+          "AUD": 0.65, "NZD": 0.59, "CAD": 0.72, "CHF": 1.13}   # spec v34
 
 
 def _usd_per_move(pair: str, price: float, contract: float) -> float:
