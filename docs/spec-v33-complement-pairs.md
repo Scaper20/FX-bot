@@ -59,5 +59,43 @@ be scanned live on the free plan; EUR/USD can.
 - The selection rule is applied to each baseline. If they disagree, Ore is shown both.
 - A candidate the free plan does not carry is reported but marked "needs a paid plan".
 
-## Results
-(appended after the run)
+## Results (run 28 Nov 2026, `backtest/complement_v33.py`, 1.5% risk)
+Platinum: Twelve Data answered "not found" for XPT/USD, so it was not tested. EUR/GBP gave 18 plan trades.
+
+**Each candidate's own plan trades (after the assumed spread)**
+
+| Pair | Trades | Net R | Rule 1 |
+|---|---|---|---|
+| GBP/JPY | 24 | −20.9 | fails |
+| EUR/JPY | 27 | −3.0 | fails |
+| USD/CAD | 34 | −17.3 | fails |
+| USD/CHF | 29 | +11.5 | passes |
+| NZD/USD | 24 | −2.5 | fails |
+| EUR/GBP | 18 | −4.7 | fails |
+
+**Prop pass rate and funded payout**
+
+| Basket | Pass | Funded avg paid | Failed on trailing limit |
+|---|---|---|---|
+| B (GBP/USD, gold, EUR/USD, silver) | 33.8% | $165.0 | 45.6% |
+| B + USD/CHF | 24.5% | $101.4 | 56.4% |
+| B + EUR/JPY | 28.4% | $158.8 | 55.4% |
+| B + GBP/JPY | 27.5% | $132.5 | 53.9% |
+| B + USD/CAD | 23.8% | $103.1 | 57.3% |
+| B + EUR/GBP | 20.6% | $149.5 | 52.9% |
+| B + NZD/USD | 20.1% | $102.2 | 64.2% |
+| B' (GBP/USD, gold, EUR/USD) | 36.3% | $165.6 | 35.3% |
+| B' + USD/CHF | 25.5% | $126.4 | 45.6% |
+| B' + EUR/JPY | 26.5% | $145.5 | 44.1% |
+| B' + GBP/JPY | 25.5% | $126.2 | 56.4% |
+| B' + USD/CAD | 20.9% | $103.4 | 51.0% |
+| B' + EUR/GBP | 20.6% | $150.2 | 44.6% |
+| B' + NZD/USD | 18.6% | $117.6 | 51.5% |
+
+## Verdict
+**Nothing qualifies against either baseline, so nothing is added (rule 4).** B and B' agree.
+- Only USD/CHF is net positive on its own (+11.5R over 29 trades). Adding it still lowers the pass rate by about
+  10 points and the funded payout, against both B and B'. More challenges end on the trailing limit (45.6% to 56.4%
+  against B).
+- Every other candidate loses money on its own.
+- With 18–34 trades a pair, none of these numbers is precise; the verdict is what the pre-registered rule gives.
