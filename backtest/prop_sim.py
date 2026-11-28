@@ -33,9 +33,14 @@ class Rules:
     day_start_h: int = 22
     equity_trailing: bool = True  # Equity Edge: the trailing floor follows the highest balance OR equity
     leverage: dict = field(default_factory=lambda: {"GBPUSD": 30, "EURUSD": 30, "AUDUSD": 30, "USDJPY": 30,
-                                                     "XAUUSD": 10, "XAGUSD": 10})
+                                                     "XAUUSD": 10, "XAGUSD": 10, "XPTUSD": 10, "GBPJPY": 30,
+                                                     "EURJPY": 30, "USDCAD": 30, "USDCHF": 30, "NZDUSD": 30,
+                                                     "EURGBP": 30})
     contract: dict = field(default_factory=lambda: {"GBPUSD": 100_000, "EURUSD": 100_000, "AUDUSD": 100_000,
-                                                    "USDJPY": 100_000, "XAUUSD": 100, "XAGUSD": 5000})
+                                                    "USDJPY": 100_000, "XAUUSD": 100, "XAGUSD": 5000,
+                                                    "XPTUSD": 100, "GBPJPY": 100_000, "EURJPY": 100_000,
+                                                    "USDCAD": 100_000, "USDCHF": 100_000, "NZDUSD": 100_000,
+                                                    "EURGBP": 100_000})
     no_hedge: bool = True         # hedging is prohibited: skip a trade opposite an open one on the same pair
     payout_days: int | None = None  # funded stage: pay out profit every N days (no target)
     split: float = 0.8
@@ -52,14 +57,27 @@ class Plan:
     label: str = field(default="")
 
 
+FX_USD = {"JPY": 1 / 150, "GBP": 1.30, "EUR": 1.10}    # fixed rates for crosses (spec v33; only the leverage cap uses them)
+
+
 def _usd_per_move(pair: str, price: float, contract: float) -> float:
-    """Dollars per 1.0 price move per lot: XXX/USD pays in dollars; USD/XXX pays in XXX, converted at the price."""
-    return contract / price if pair.startswith("USD") else contract
+    """Dollars per 1.0 price move per lot: XXX/USD pays in dollars; USD/XXX pays in XXX, converted at the price;
+    crosses pay in the quote currency, converted at a fixed rate."""
+    if pair.endswith("USD"):
+        return contract
+    if pair.startswith("USD"):
+        return contract / price
+    return contract * FX_USD[pair[3:]]
 
 
 def _notional_per_lot(pair: str, price: float, contract: float) -> float:
-    """Dollar value of one lot (for margin): USD/XXX = contract dollars; XXX/USD = contract x price."""
-    return contract if pair.startswith("USD") else contract * price
+    """Dollar value of one lot (for margin): USD/XXX = contract dollars; XXX/USD = contract x price; crosses =
+    contract x the base currency's fixed dollar rate."""
+    if pair.startswith("USD"):
+        return contract
+    if pair.endswith("USD"):
+        return contract * price
+    return contract * FX_USD[pair[:3]]
 
 
 def load(paths, candles_dir: str | None = None) -> pd.DataFrame:

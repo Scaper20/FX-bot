@@ -49,5 +49,15 @@ GBP/JPY, EUR/JPY, USD/CAD, USD/CHF, NZD/USD, EUR/GBP, and platinum (XPT/USD) if 
 Each pair gives about 25–35 plan trades in 4.5 years. Picking the best 2 of up to 7 by backtest will partly pick luck,
 so the live record is the real test.
 
+## Amendment (28 Nov 2026, before any candidate was replayed)
+Twelve Data answered XAG/USD with "This symbol is available starting with the Grow or Venture plan". Silver can't
+be scanned live on the free plan; EUR/USD can.
+
+- Every result is reported against both baselines:
+  - **B**: GBP/USD + gold + EUR/USD + silver, as fixed above.
+  - **B'**: GBP/USD + gold + EUR/USD, what can run live today.
+- The selection rule is applied to each baseline. If they disagree, Ore is shown both.
+- A candidate the free plan does not carry is reported but marked "needs a paid plan".
+
 ## Results
 (appended after the run)

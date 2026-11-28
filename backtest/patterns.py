@@ -30,7 +30,15 @@ MARKETS = {**MAIN, **FRESH}
 # Extra markets (28 Nov 2026): 5-minute Twelve Data history (Dukascopy refused downloads); spread assumed 1 pip until
 # Ore confirms his prop firm's spreads. Not part of MARKETS, so older scripts keep their four markets.
 EXTRA = {"USDJPY": {"spread": 0.010, "file": "data/td/usdjpy-m5.csv.gz"},
-         "AUDUSD": {"spread": 0.0001, "file": "data/td/audusd-m5.csv.gz"}}
+         "AUDUSD": {"spread": 0.0001, "file": "data/td/audusd-m5.csv.gz"},
+         # spec v33 candidates (28 Nov 2026): spreads assumed, Ore's choice, until he gives his real ones
+         "GBPJPY": {"spread": 0.025, "file": "data/td/gbpjpy-m5.csv.gz"},
+         "EURJPY": {"spread": 0.020, "file": "data/td/eurjpy-m5.csv.gz"},
+         "USDCAD": {"spread": 0.00015, "file": "data/td/usdcad-m5.csv.gz"},
+         "USDCHF": {"spread": 0.00015, "file": "data/td/usdchf-m5.csv.gz"},
+         "NZDUSD": {"spread": 0.00015, "file": "data/td/nzdusd-m5.csv.gz"},
+         "EURGBP": {"spread": 0.00015, "file": "data/td/eurgbp-m5.csv.gz"},
+         "XPTUSD": {"spread": 2.0, "file": "data/td/xptusd-m5.csv.gz"}}
 TFS = ("M15", "H1", "H4", "D1")
 HOLD = {"M15": "2D", "H1": "5D", "H4": "15D", "D1": "45D"}
 N = 3                     # swing: beyond the 3 candles each side, known 3 candles later
